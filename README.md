@@ -20,6 +20,6 @@ Tests:
 - Invalid command arguments
 - Null string command
 - Empty command
-- Argument is a directory
+- Command is a directory
 - No permission to execute command
 - No PATH environmental variable
