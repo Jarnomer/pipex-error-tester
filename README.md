@@ -10,7 +10,7 @@ Compares against bash. Shows both outputs and exit codes as well as outfile diff
 
 Currently does not test if child process is signaled for example by segfault.
 
-Also does not test leaks. Should be ran from directery where pipex executable is.
+Also does not test leaks. Should be ran from directory where pipex executable is.
 
 Tests:
 
