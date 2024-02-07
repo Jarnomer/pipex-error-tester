@@ -178,10 +178,26 @@ print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ ou
 compare ${in1} "xxx" "/xxx/xxx" ${out1} ${out2}
 
 i=$((i+1))
+print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
+			"NULL STRING CMD1" "$i"
+run_pipex ${in1} "" "wc" ${out1}
+run_shell ${in1} "''" "wc" ${out2}
+show_diff ${out1} ${out2}
+print_terminator
+
+i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
+			"EMPTY CMD2\n" "$i"
+run_pipex ${in1} "ls" "     " ${out1}
+run_shell ${in1} "ls" "'     '" ${out2}
+show_diff ${out1} ${out2}
+print_terminator
+
+i=$((i+1))
+print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ outfile" \
 			"NULL STRING CMD1, EMPTY CMD2\n" "$i"
-run_pipex "$1" "" "     " ${out1}
-run_shell "$1" "''" "'     '" ${out2}
+run_pipex ${in1} "" "     " ${out1}
+run_shell ${in1} "''" "'     '" ${out2}
 show_diff ${out1} ${out2}
 print_terminator
 
