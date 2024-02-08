@@ -1,3 +1,5 @@
+#! /bin/bash
+
 # Small 42 Pipex tester by Jankku, based on script created by librity
 # https://github.com/librity/ft_pipex/blob/master/scripts/compare.sh
 
@@ -51,7 +53,7 @@ print_title() {
 	printf "${P}${FLLTITLE}${RC}${GB} TEST $6 ${P}${FLLTITLE}${RC}\n"
 	printf "\n${BB}TESTING:${RC}\t${C}$5${RC}\n"
 	printf "$1\t$2\t$3\t$4${RC}\n"
-
+	CNTR=$((CNTR+1))
 }
 
 print_main_title() {
@@ -74,162 +76,133 @@ compare() {
 
 trap handle_ctrlc SIGINT
 handle_ctrlc() {
-	rm ${in1} ${out1} ${out2} ${bin1}
+	${RM} ${in1} ${out1} ${out2} ${bin1}
+	export PATH="$old_PATH"
 	exit
 }
 
-i=1
+CNTR=1
+RM="rm -rf"
 NAME=pipex
 in1=infile
 out1=outfile1
 out2=outfile2
 bin1=ppx_tmp
+old_PATH=$PATH
 
-touch ${in1}
-touch ${out1}
-touch ${out2}
-
-NAME=pipex
 if [ -f "$NAME" ]; then
 	print_main_title
+	touch ${in1}
+	touch ${out1}
+	touch ${out2}
+	cp ${NAME} ${bin1}
 	read -p "Continue?" -n 1 -r
 else
 	printf "${RB}ERROR: ${RC}${Y}binary <$NAME> not found${RC}"
-	rm ${in1} ${out1} ${out2}
 	exit
 fi
 
-cp pipex ${bin1}
-
 print_title "${RB}☒ infile" "${GB}☑ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"INFILE DOES NOT EXIST\n" "$i"
+			"INFILE DOES NOT EXIST\n" "${CNTR}"
 compare noinfile "ls" "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${RB}☒ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"INFILE DOES NOT EXIST, INVALID CMD1\n" "$i"
+			"INFILE DOES NOT EXIST, INVALID CMD1\n" "${CNTR}"
 compare noinfile "xxx" "wc" ${out1} ${out2}
 
-i=$((i+1))
 chmod -r ${in1}
-
 print_title "${RB}☒ infile" "${GB}☑ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"INFILE NO READ PERMISSION\n" "$i"
+			"INFILE NO READ PERMISSION\n" "${CNTR}"
 compare ${in1} "ls" "wc" ${out1} ${out2}
-
 chmod +r ${in1}
 
 chmod -w ${out1}
 chmod -w ${out2}
-
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${GB}☑ command" "${RB}☒ outfile" \
-			"OUTFILE NO WRITE PERMISSION\n" "$i"
+			"OUTFILE NO WRITE PERMISSION\n" "${CNTR}"
 compare ${in1} "ls" "wc" ${out1} ${out2}
-
 chmod +w ${out1}
 chmod +w ${out2}
 
-i=$((i+1))
 chmod -x ${bin1}
-
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"NO EXEC PERMISSION CMD1\n" "$i"
+			"NO EXEC PERMISSION CMD1\n" "${CNTR}"
 compare ${in1} ./${bin1} "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"NO EXEC PERMISSION CMD2\n" "$i"
+			"NO EXEC PERMISSION CMD2\n" "${CNTR}"
 compare ${in1} "wc" ./${bin1} ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"CMD1 IS FOLDER, VALID CMD2\n" "$i"
+			"CMD1 IS FOLDER, VALID CMD2\n" "${CNTR}"
 compare ${in1} "./libft/" "ls" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"VALID CMD1, CMD2 IS FOLDER\n" "$i"
+			"VALID CMD1, CMD2 IS FOLDER\n" "${CNTR}"
 compare ${in1} "ls" "./libft/" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"INFILE OK, INVALID CMD1\n" "$i"
+			"INFILE OK, INVALID CMD1\n" "${CNTR}"
 compare ${in1} "xxx" "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"INFILE OK, INVALID CMD1 (PATH)\n" "$i"
+			"INFILE OK, INVALID CMD1 (PATH)\n" "${CNTR}"
 compare ${in1} "/xxx/xxx" "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"INFILE OK, VALID CMD1, INVALID CMD2\n" "$i"
+			"INFILE OK, VALID CMD1, INVALID CMD2\n" "${CNTR}"
 compare ${in1} "ls" "xxx" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"INFILE OK, VALID CMD1, INVALID CMD2 (PATH)\n" "$i"
+			"INFILE OK, VALID CMD1, INVALID CMD2 (PATH)\n" "${CNTR}"
 compare ${in1} "ls" "/xxx/xxx" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"INVALID CMD1, INVALID CMD2 (PATH)\n" "$i"
+			"INVALID CMD1, INVALID CMD2 (PATH)\n" "${CNTR}"
 compare ${in1} "xxx" "/xxx/xxx" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"NULL STRING CMD1" "$i"
+			"NULL STRING CMD1" "${CNTR}"
 run_pipex ${in1} "" "wc" ${out1}
 run_shell ${in1} "''" "wc" ${out2}
 show_diff ${out1} ${out2}
 print_terminator
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"EMPTY CMD2\n" "$i"
+			"EMPTY CMD2\n" "${CNTR}"
 run_pipex ${in1} "ls" "     " ${out1}
 run_shell ${in1} "ls" "'     '" ${out2}
 show_diff ${out1} ${out2}
 print_terminator
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"NULL STRING CMD1, EMPTY CMD2\n" "$i"
+			"NULL STRING CMD1, EMPTY CMD2\n" "${CNTR}"
 run_pipex ${in1} "" "     " ${out1}
 run_shell ${in1} "''" "'     '" ${out2}
 show_diff ${out1} ${out2}
 print_terminator
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"BAD ARGS CMD1, VALID CMD2\n" "$i"
+			"BAD ARGS CMD1, VALID CMD2\n" "${CNTR}"
 compare ${in1} "ls -?" "grep c" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"BAD ARGS CMD1, BAD ARGS CMD2\n" "$i"
+			"BAD ARGS CMD1, BAD ARGS CMD2\n" "${CNTR}"
 compare ${in1} "ls -?" "wc -9001" ${out1} ${out2}
 
-i=$((i+1))
-old_PATH=$PATH
 unset PATH
-
 print_title "${GB}☑ infile" "${RB}☒ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"PATH ENVP DOES NOT EXIST\n" "$i"
+			"PATH ENVP DOES NOT EXIST\n" "${CNTR}"
 compare ${in1} "ls" "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${RB}☒ command" "${GB}☑ outfile" \
-			"NO PATH ENVP, CMD1 (PATH)\n" "$i"
+			"NO PATH ENVP, CMD1 (PATH)\n" "${CNTR}"
 compare ${in1} "/bin/ls" "wc" ${out1} ${out2}
 
-i=$((i+1))
 print_title "${GB}☑ infile" "${GB}☑ command" "${GB}☑ command" "${GB}☑ outfile" \
-			"NO PATH ENVP, CMD1 (PATH), CMD2 (PATH)\n" "$i"
+			"NO PATH ENVP, CMD1 (PATH), CMD2 (PATH)\n" "${CNTR}"
 compare ${in1} "/bin/ls" "/bin/cat" ${out1} ${out2}
 
 export PATH="$old_PATH"
-
+${RM} ${in1} ${out1} ${out2} ${bin1}
 printf "${GB}\nALL TESTS FINISHED!\n${RC}"
-rm ${in1} ${out1} ${out2} ${bin1}
