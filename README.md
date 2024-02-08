@@ -1,6 +1,8 @@
 # pipex-error-tester
 
-Small tester for 42 pipex error handling based on script created by librity.
+![example](example.png)
+
+Basic error handling tester for 42 pipex based on script created by librity.
 
 https://github.com/librity/ft_pipex/blob/master/scripts/compare.sh
 
@@ -10,7 +12,7 @@ Compares against bash. Shows both outputs and exit codes as well as outfile diff
 
 Currently does not test if child process is signaled for example by segfault.
 
-Also does not test leaks. Should be ran from directory where pipex executable is.
+Should be ran from directory where pipex executable is. Does not test leaks.
 
 Tests:
 

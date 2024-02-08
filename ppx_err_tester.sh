@@ -1,6 +1,6 @@
 #! /bin/bash
 
-# Small 42 Pipex tester by Jankku, based on script created by librity
+# Basic 42 Pipex tester based on script created by librity
 # https://github.com/librity/ft_pipex/blob/master/scripts/compare.sh
 
 R="\033[0;31m" # Red
@@ -38,13 +38,13 @@ run_shell() {
 }
 
 show_diff() {
-	printf "${P}${FLL}=${RC}${RB} DIFF ${P}${FLL}=${RC}\n"
+	printf "${P}${FLL}${RC}${RB} DIFF ${P}${FLL}${RC}\n"
 	/usr/bin/diff "$1" "$2"
 	printf "${RC}\n"
 }
 
 print_terminator() {
-	printf "${P}${FLLTITLE}${RC} ${GB}FINISHED ${P}${FLLTITLE}${RC}\n\n"
+	printf "${P}${FLLTITLE}${RC} ${GB}FINISH ${P}${FLLTITLE}${RC}\n\n"
 	read -p "Continue?" -n 1 -r
 }
 
@@ -60,9 +60,7 @@ print_main_title() {
 	printf "\033c" #clear terminal
 	printf "${P}${FLLTITLE}${FLLTITLE}=${RC}
 ${PB}|\t\t\t\t\t\t|
-${PB}|${CB}\t     PIPEX TESTER BY JANKKU\t\t${PB}|
-${PB}|\t\t\t\t\t\t|
-${PB}|${RB}\t     TESTING ERROR HANDLING\t\t${PB}|
+${PB}|${CB}\tPIPEX ERROR HANDLING TESTER\t\t${PB}|
 ${PB}|\t\t\t\t\t\t|
 ${P}${FLLTITLE}${FLLTITLE}=${RC}\n\n"
 }
@@ -96,7 +94,7 @@ if [ -f "$NAME" ]; then
 	touch ${out1}
 	touch ${out2}
 	cp ${NAME} ${bin1}
-	read -p "Continue?" -n 1 -r
+	read -p "Start?" -n 1 -r
 else
 	printf "${RB}ERROR: ${RC}${Y}binary <$NAME> not found${RC}"
 	exit
