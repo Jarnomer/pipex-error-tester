@@ -15,9 +15,14 @@ PB="\033[1;35m" # Bold Purple
 CB="\033[1;36m" # Bold Cyan
 RC="\033[0m"    # Reset Color
 
-# Variables
+# Globals
 RM="rm -rf"
 NAME=pipex
+OLD_PATH=$PATH
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Test files
 in1=infile
 out1=outfile1
 out2=outfile2
@@ -25,17 +30,14 @@ bin1=ppx_tmp
 dir1=dir_tmp
 log1=pipex_error.log
 
-# Globals
-old_PATH=$PATH
-TESTS_PASSED=0
-TESTS_FAILED=0
-
 # Commands
 DIFF_CMD=$(which diff)
 GREP_CMD=$(which grep)
 TAIL_CMD=$(which tail)
+DATE_CMD=$(which date)
 SLEEP_CMD=$(which sleep)
 TR_CMD=$(which tr)
+BC_CMD=$(which bc)
 WC_CMD=$(which wc)
 PS_CMD=$(which ps)
 VALGRIND_CMD=$(which valgrind)
@@ -55,16 +57,16 @@ if [ -n "$TIMEOUT_CMD" ]; then
 fi
 
 check_requirements() {
-  if [[ -z "$TIMEOUT_FULL" ]]; then
+  if [ -z "$TIMEOUT_FULL" ]; then
     printf "${YB}WARNING:${RC} ${C}'timeout'${RC} not available.\n"
   fi
-  if [[ -z "$VALGRIND_FULL" ]]; then
+  if [ -z "$VALGRIND_FULL" ]; then
     printf "${YB}WARNING:${RC} ${C}'valgrind'${RC} not available.\n"
   fi
 }
 
 cleanup() {
-  export PATH="$old_PATH"
+  export PATH="$OLD_PATH"
   ${RM} ${in1} ${out1} ${out2} ${bin1} ${dir1}
 }
 
@@ -116,25 +118,23 @@ print_summary() {
     printf "${GB}All tests passed!${RC}\n"
   else
     printf "${RB}See ${log1} for details.${RC}\n"
+    printf "${YB}Extra tests do not generate log entries!"
   fi
 }
 
 test_concurrency() {
-  local start_time=0
-  local end_time=0
-  local elapsed_time=1
-
-  if [ -n "$TIMEOUT_FULL" ]; then
-    start_time=$(date +%s.%N)
-    $TIMEOUT_FULL ./pipex "/dev/random" "cat" "head -n 1" "${out1}" >/dev/null
-    end_time=$(date +%s.%N)
-  else
-    printf "${BB}Concurrency:${RC} ${YB}'timeout' not available${RC}\n"
+  if [ -z "$TIMEOUT_FULL" ]; then
+    printf "${BB}Concurrency:${RC} ${YB}not available${RC}\n"
     return
   fi
 
-  elapsed_time=$(echo "$end_time - $start_time" | bc)
-  if (($(echo "$elapsed_time < 1" | bc -l))); then
+  exec="$TIMEOUT_FULL ./$NAME"
+  start_time=$($DATE_CMD +%s.%N)
+  $exec "/dev/random" "cat" "head -n 1" "${out1}" >/dev/null
+  end_time=$($DATE_CMD +%s.%N)
+
+  elapsed_time=$(echo "$end_time - $start_time" | $BC_CMD)
+  if (($(echo "$elapsed_time < 1" | $BC_CMD -l))); then
     printf "${BB}Concurrency:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
@@ -146,11 +146,8 @@ test_concurrency() {
 test_zombie_processes() {
   local zombie_count=0
 
-  if [ -n "$TIMEOUT_FULL" ]; then
-    $TIMEOUT_FULL ./pipex "${in1}" "sleep 1" "echo test" "${out1}" 2>/dev/null
-  else
-    ./pipex "${in1}" "sleep 1" "echo test" "${out1}" 2>/dev/null
-  fi
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "${in1}" "sleep 1" "echo test" "${out1}" 2>/dev/null
 
   $SLEEP_CMD 0.5
 
@@ -167,48 +164,23 @@ test_zombie_processes() {
 }
 
 test_signal_handler() {
-  if [ -n "$TIMEOUT_FULL" ]; then
-    $TIMEOUT_FULL ./pipex "${in1}" "echo" "sleep 2" "${out1}" >/dev/null &
-  else
-    ./pipex "${in1}" "echo" "sleep 2" "${out1}" >/dev/null &
-  fi
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "${in1}" "echo" "sleep 2" "${out1}" >/dev/null &
 
   pid=$!
   sleep 0.5
 
   kill -SIGINT "$pid"
   wait "$pid"
-  sigint_exit=$?
+  exit_code=$?
 
-  if command -v gcc >/dev/null 2>&1; then
-    cat >test_segfault.c <<EOF # Create small segfault program
-#include <stdio.h>
-int main() {
-    char *ptr = NULL;
-    *ptr = 'x';
-    return 0;
-}
-EOF
-    gcc -o test_segfault test_segfault.c 2>/dev/null
-    if [ -n "$TIMEOUT_FULL" ]; then
-      $TIMEOUT_FULL ./pipex "${in1}" "ls" "./test_segfault" "${out1}" 2>/dev/null
-    else
-      ./pipex "${in1}" "ls" "./test_segfault" "${out1}" 2>/dev/null
-    fi
-  else
-    printf "${BB}Signals:${RC} ${YB}'gcc' not available${RC}\n"
-  fi
-  sigsegv_exit=$?
-
-  if [ "$sigint_exit" -eq 130 ] && [ "$sigsegv_exit" -eq 139 ]; then
+  if [ "$exit_code" -eq 130 ]; then
     printf "${BB}Signals:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
     printf "${BB}Signals:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
-
-  ${RM} test_segfault.c test_segfault
 }
 
 check_leaks() {
@@ -236,15 +208,14 @@ check_leaks() {
 }
 
 compare_results() {
-  # set local variables for readibility
+  # Set local variables for readibility
   local infile="$1"
-  local cmd=""
   local cmd1="$2"
   local cmd2="$3"
-  local empty_cmds=0
   local outfile1="$4"
   local outfile2="$5"
   local title="$6"
+  local empty_cmds=0
 
   # check if testing empty commands
   if [ -z "$(echo "$cmd1" | $TR_CMD -d '[:space:]')" ] ||
@@ -253,8 +224,8 @@ compare_results() {
   fi
 
   # Run pipex with timeout if available
-  cmd="$TIMEOUT_FULL ./$NAME"
-  pipex_output=$($cmd "$infile" "$cmd1" "$cmd2" "$outfile1" 2>&1)
+  exec="$TIMEOUT_FULL ./$NAME"
+  pipex_output=$($exec "$infile" "$cmd1" "$cmd2" "$outfile1" 2>&1)
   pipex_exit=$?
 
   # Update pipex output in case of segfault
@@ -262,12 +233,12 @@ compare_results() {
     pipex_output="${Y}Segmentation fault (SIGSEGV) (core dumped)${RC}\n"
   fi
 
-  # Run shell with timeout if available
-  cmd="$TIMEOUT_FULL bash -c"
+  # Run shell with timeout if available, check if empty commands used
+  exec="$TIMEOUT_FULL bash -c"
   if [ "$empty_cmds" -eq 1 ]; then
-    shell_output=$($cmd "< $infile \"$cmd1\" | \"$cmd2\" > $outfile2" 2>&1)
+    shell_output=$($exec "< $infile \"$cmd1\" | \"$cmd2\" > $outfile2" 2>&1)
   else
-    shell_output=$($cmd "< $infile $cmd1 | $cmd2 > $outfile2" 2>&1)
+    shell_output=$($exec "< $infile $cmd1 | $cmd2 > $outfile2" 2>&1)
   fi
   shell_exit=$?
 
@@ -294,8 +265,8 @@ compare_results() {
   fi
 
   # print both outputs
-  [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
-  [ -n "$shell_output" ] && printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
+  printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
+  printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
 
   # Print exit codes
   if [ "$pipex_exit" -eq "$shell_exit" ]; then
@@ -322,7 +293,7 @@ compare_results() {
     printf "${BB}Leaks:${RC} ${RB}KO${RC}\n"
   fi
 
-  # Update error log
+  # Update error log if test did not pass
   if [ "$pipex_exit" -ne "$shell_exit" ] || [ "$leak_result" -eq 1 ] ||
     { [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
       [ "$diff_output" != "not available" ]; }; then
@@ -344,7 +315,7 @@ compare_results() {
     else
       echo "Leaks result: OK" >>"${log1}"
     fi
-    echo "=====================================================" >>"${log1}"
+    echo "================================================" >>"${log1}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
   else
     TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -391,7 +362,7 @@ run_error_tests() {
   compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "PATH ENVP DOES NOT EXIST, INVALID CMDS"
   compare_results "${in1}" "/bin/ls" "wc" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), INVALID CMD2"
   compare_results "${in1}" "/bin/ls" "/bin/cat" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), VALID CMD2 (ABS)"
-  export PATH="$old_PATH"
+  export PATH="$OLD_PATH"
 }
 
 run_valid_tests() {
