@@ -34,9 +34,11 @@ log1=pipex_error.log
 DIFF_CMD=$(which diff)
 GREP_CMD=$(which grep)
 SED_CMD=$(which sed)
+CAT_CMD=$(which cat)
 TAIL_CMD=$(which tail)
 DATE_CMD=$(which date)
 SLEEP_CMD=$(which sleep)
+LS_CMD=$(which ls)
 TR_CMD=$(which tr)
 BC_CMD=$(which bc)
 WC_CMD=$(which wc)
@@ -293,15 +295,17 @@ compare_results() {
   fi
 
   # Print both outputs
-  printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
-  printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
+  [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
+  [ -n "$shell_output" ] && printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
 
   # Check and print error message
   error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
-  if echo "$pipex_output" | $GREP_CMD -qF "$error_msg"; then
-    printf "${BB}Message:${RC} ${GB}OK${RC}\n"
-  else
-    printf "${BB}Message:${RC} ${RB}KO${RC}\n"
+  if [ -n "$pipex_output" ] && [ -n "$shell_output" ]; then
+    if echo "$pipex_output" | $GREP_CMD -qF "$error_msg"; then
+      printf "${BB}Message:${RC} ${GB}OK${RC}\n"
+    else
+      printf "${BB}Message:${RC} ${RB}KO${RC}\n"
+    fi
   fi
 
   # Print exit codes
@@ -378,8 +382,8 @@ run_error_tests() {
 
   unset PATH
   compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "PATH ENVP DOES NOT EXIST, INVALID CMDS"
-  compare_results "${in1}" "/bin/ls" "wc" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), INVALID CMD2"
-  compare_results "${in1}" "/bin/ls" "/bin/cat" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), VALID CMD2 (ABS)"
+  compare_results "${in1}" "$LS_CMD" "wc" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), INVALID CMD2"
+  compare_results "${in1}" "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), VALID CMD2 (ABS)"
   export PATH="$OLD_PATH"
 }
 
@@ -392,7 +396,7 @@ run_valid_tests() {
   compare_results $infile "sort" "uniq" "${out1}" "${out2}" "SORT CMD1, UNIQ CMD2"
   compare_results $infile "tr a-z A-Z" "tee ${out2}" "${out1}" "${out2}" "TR CMD1, TEE CMD2"
   compare_results $infile "echo -n hello" "wc -c" "${out1}" "${out2}" "ECHO CMD1, WC CMD2"
-  compare_results $infile "/bin/ls" "/bin/cat" "${out1}" "${out2}" "LS CMD1 (PATH), CAT CMD2 (PATH)"
+  compare_results $infile "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "LS CMD1 (PATH), CAT CMD2 (PATH)"
 }
 
 run_extra_tests() {
