@@ -33,6 +33,7 @@ log1=pipex_error.log
 # Commands
 DIFF_CMD=$(which diff)
 GREP_CMD=$(which grep)
+SED_CMD=$(which sed)
 TAIL_CMD=$(which tail)
 DATE_CMD=$(which date)
 SLEEP_CMD=$(which sleep)
@@ -120,6 +121,33 @@ print_summary() {
     printf "${RB}See ${log1} for details.${RC}\n"
     printf "${YB}Extra tests do not generate log entries!"
   fi
+}
+
+update_error_log() {
+  local title="$1"
+
+  echo "Test failed: $title" >>"${log1}"
+  echo "Pipex exit: $pipex_exit" >>"${log1}"
+  echo "Shell exit: $shell_exit" >>"${log1}"
+  echo "Pipex output: $pipex_output" >>"${log1}"
+  echo "Shell output: $shell_output" >>"${log1}"
+
+  if [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
+    [ "$diff_output" != "not available" ]; then
+    echo "Diff result: Diffs detected" >>"${log1}"
+    echo "$diff_output" >>"${log1}"
+  else
+    echo "Diff result: OK" >>"${log1}"
+  fi
+
+  if [ "$leak_result" -eq 1 ]; then
+    echo "Leaks result: Leaks detected" >>"${log1}"
+    echo "$leak_output" >>"${log1}"
+  else
+    echo "Leaks result: OK" >>"${log1}"
+  fi
+
+  echo "================================================" >>"${log1}"
 }
 
 test_concurrency() {
@@ -217,7 +245,7 @@ compare_results() {
   local title="$6"
   local empty_cmds=0
 
-  # check if testing empty commands
+  # Check if testing empty commands
   if [ -z "$(echo "$cmd1" | $TR_CMD -d '[:space:]')" ] ||
     [ -z "$(echo "$cmd2" | $TR_CMD -d '[:space:]')" ]; then
     empty_cmds=1
@@ -264,9 +292,17 @@ compare_results() {
     printf "${GB}Shell:${RC} < $infile $cmd1 | $cmd2 > $outfile2\n\n"
   fi
 
-  # print both outputs
+  # Print both outputs
   printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
   printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
+
+  # Check and print error message
+  error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
+  if echo "$pipex_output" | $GREP_CMD -qF "$error_msg"; then
+    printf "${BB}Message:${RC} ${GB}OK${RC}\n"
+  else
+    printf "${BB}Message:${RC} ${RB}KO${RC}\n"
+  fi
 
   # Print exit codes
   if [ "$pipex_exit" -eq "$shell_exit" ]; then
@@ -297,26 +333,8 @@ compare_results() {
   if [ "$pipex_exit" -ne "$shell_exit" ] || [ "$leak_result" -eq 1 ] ||
     { [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
       [ "$diff_output" != "not available" ]; }; then
-    echo "Test failed: $title" >>"${log1}"
-    echo "Pipex exit: $pipex_exit" >>"${log1}"
-    echo "Shell exit: $shell_exit" >>"${log1}"
-    echo "Pipex output: $pipex_output" >>"${log1}"
-    echo "Shell output: $shell_output" >>"${log1}"
-    if [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
-      [ "$diff_output" != "not available" ]; then
-      echo "Diff result: Diffs detected" >>"${log1}"
-      echo "$diff_output" >>"${log1}"
-    else
-      echo "Diff result: OK" >>"${log1}"
-    fi
-    if [ $leak_result -eq 1 ]; then
-      echo "Leaks result: Leaks detected" >>"${log1}"
-      echo "$leak_output" >>"${log1}"
-    else
-      echo "Leaks result: OK" >>"${log1}"
-    fi
-    echo "================================================" >>"${log1}"
     TESTS_FAILED=$((TESTS_FAILED + 1))
+    update_error_log "$title"
   else
     TESTS_PASSED=$((TESTS_PASSED + 1))
   fi
