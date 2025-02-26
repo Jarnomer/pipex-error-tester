@@ -15,7 +15,9 @@ PB="\033[1;35m" # Bold Purple
 CB="\033[1;36m" # Bold Cyan
 RC="\033[0m"    # Reset Color
 
-BR="================================================================"
+# Log separators
+TEST_BREAK="==================================================================="
+LOG_BREAK="====================================="
 
 # Globals
 RM="rm -rf"
@@ -23,6 +25,7 @@ NAME=pipex
 OLD_PATH=$PATH
 TESTS_PASSED=0
 TESTS_FAILED=0
+TEST_CURRENT=1
 
 # Test files
 in1=infile
@@ -45,11 +48,12 @@ TR_CMD=$(which tr)
 BC_CMD=$(which bc)
 WC_CMD=$(which wc)
 PS_CMD=$(which ps)
-VALGRIND_CMD=$(which valgrind)
-VALGRIND_FLAGS="--leak-check=full --show-leak-kinds=all --track-fds=yes --trace-children=yes"
-VALGRIND_FULL=""
 TIMEOUT_CMD=$(which timeout)
 TIMEOUT_FULL=""
+VALGRIND_CMD=$(which valgrind)
+VALGRIND_FLAGS="--leak-check=full --show-leak-kinds=all \
+  --track-fds=yes --trace-children=yes"
+VALGRIND_FULL=""
 
 # Valgrind command
 if [ -n "$VALGRIND_CMD" ]; then
@@ -129,19 +133,19 @@ print_title_line() {
   local pad_len=$(((title_width - msg_len) / 2))
 
   title_pad="$(printf '%*s' "$pad_len" '' | $TR_CMD ' ' '=')"
-  printf "\n${P}%s${RC}${GB} %s ${P}%s${RC}\n\n" \
-    "$title_pad" "$title" "$title_pad"
+  printf "\n${P}%s${RC} ${GB}TEST ${RC}${PB}${TEST_CURRENT}${RC}" "$title_pad"
+  printf " - ${GB}%s ${P}%s${RC}\n\n" "$title" "$title_pad"
 }
 
 print_header() {
   local header="$1"
-  local header_width=61
+  local header_width=70
   local msg_len=${#header}
   local pad_len=$(((header_width - msg_len) / 2 - 1))
   line="$(printf '%*s' "$header_width" '' | $TR_CMD ' ' '=')"
 
   printf "\n${P}%s${RC}\n" "$line"
-  printf "${P}|%*s${GB}%s${RC}%*s${P}|${RC}\n" \
+  printf "${P}|%*s${GB}%s${RC}%*s${P} |${RC}\n" \
     "$pad_len" "" "$header" "$pad_len" ""
   printf "${P}%s${RC}\n\n" "$line"
 }
@@ -161,28 +165,90 @@ print_summary() {
 update_error_log() {
   local title="$1"
 
-  echo "Test failed: $title" >>"${log1}"
-  echo "Pipex exit: $pipex_exit" >>"${log1}"
-  echo "Shell exit: $shell_exit" >>"${log1}"
-  echo "Pipex output: $pipex_output" >>"${log1}"
-  echo "Shell output: $shell_output" >>"${log1}"
+  echo "TEST ${TEST_CURRENT}: $title" >>"${log1}"
+  echo "$TEST_BREAK" >>"${log1}"
 
-  if [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
-    [ "$diff_output" != "not available" ]; then
-    echo "Diff result: Diffs detected" >>"${log1}"
-    echo "$diff_output" >>"${log1}"
+  if [ "$pipex_exit" -ne "$shell_exit" ]; then
+    echo "Exit Code: KO - pipex: $pipex_exit | bash: $shell_exit" >>"${log1}"
   else
-    echo "Diff result: OK" >>"${log1}"
+    echo "Exit Code: OK" >>"${log1}"
+  fi
+
+  if [ "$output_result" -eq 1 ]; then
+    echo "Output: KO - Different outputs" >>"${log1}"
+    echo "Pipex: $pipex_output" >>"${log1}"
+    echo "Shell: $shell_output" >>"${log1}"
+  else
+    echo "Output: OK" >>"${log1}"
+  fi
+
+  if [ -n "$diff_output" ] && [ -w "$outfile1" ]; then
+    echo "Diff: KO - Detected" >>"${log1}"
+    echo "$LOG_BREAK" >>"${log1}"
+    echo "$diff_output" >>"${log1}"
+    echo "$LOG_BREAK" >>"${log1}"
+  else
+    echo "Diff: OK" >>"${log1}"
   fi
 
   if [ "$leak_result" -eq 1 ]; then
-    echo "Leaks result: Leaks detected" >>"${log1}"
+    echo "Leaks: KO - Detected" >>"${log1}"
+    echo "$LOG_BREAK" >>"${log1}"
     echo "$leak_output" >>"${log1}"
+    echo "$LOG_BREAK" >>"${log1}"
   else
-    echo "Leaks result: OK" >>"${log1}"
+    echo "Leaks: OK" >>"${log1}"
   fi
 
-  echo "{$BR}" >>"${log1}"
+  echo "$TEST_BREAK" >>"${log1}"
+  echo >>"${log1}"
+}
+
+print_test_result() {
+  print_title_line "$title"
+
+  # Trim "line 1: " from bash output which comes from shell script
+  shell_output=$(echo "$shell_output" | $SED_CMD 's/line 1: //g')
+
+  printf "${CB}Pipex:${RC} ./pipex $infile \"$cmd1\" \"$cmd2\" $outfile1\n"
+  if [ "$empty_cmds" -eq 1 ]; then
+    printf "${GB}Shell:${RC} < $infile \"$cmd1\" | \"$cmd2\" > $outfile2\n\n"
+  else
+    printf "${GB}Shell:${RC} < $infile $cmd1 | $cmd2 > $outfile2\n\n"
+  fi
+
+  if [ -n "$pipex_output" ]; then
+    printf "${CB}Pipex:${RC} $pipex_output${RC}"
+    printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
+    printf "${GB}Exits:${RC} ${CB}pipex:${RC} $pipex_exit "
+    printf "${BB}|${RC} ${GB}shell:${RC} $shell_exit${RC}\n\n"
+  fi
+
+  if [ "$output_result" -ne 1 ]; then
+    printf "${BB}Message:${RC} ${GB}OK${RC}\n"
+  else
+    printf "${YB}Message:${RC} ${RB}KO${RC}\n"
+  fi
+
+  if [ "$pipex_exit" -eq "$shell_exit" ]; then
+    printf "${BB}Exit code:${RC} ${GB}OK${RC}\n"
+  else
+    printf "${YB}Exit code:${RC} ${RB}KO${RC}\n"
+  fi
+
+  if [ -z "$diff_output" ] || [ ! -w "$outfile1" ]; then
+    printf "${BB}Diff:${RC} ${GB}OK${RC}\n"
+  else
+    printf "${YB}Diff:${RC} ${RB}KO${RC}\n"
+  fi
+
+  if [ -z "$VALGRIND_CMD" ]; then
+    printf "${BB}Leaks:${RC} ${YB}not available${RC}\n"
+  elif [ "$leak_result" -ne 1 ]; then
+    printf "${BB}Leaks:${RC} ${GB}OK${RC}\n"
+  else
+    printf "${YB}Leaks:${RC} ${RB}KO${RC}\n"
+  fi
 }
 
 # **************************************************************************** #
@@ -209,7 +275,7 @@ test_parallel_execution() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: CONCURRENCY" >>"${log1}"
     echo "Reason: Second command is waiting for first one to finish" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 }
 
@@ -232,7 +298,7 @@ test_zombie_processes() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: ZOMBIE PROCESSES" >>"${log1}"
     echo "Reason: Program does not wait for child or replaces main with fork" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 }
 
@@ -256,7 +322,7 @@ test_signal_handling() {
     echo "Test failed: INTERRUPT HANDLING" >>"${log1}"
     echo "Reason: Program did not exit with code 130 after receiving SIGINT" >>"${log1}"
     echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 }
 
@@ -293,7 +359,7 @@ EOF
     echo "Test failed: SEGFAULT HANDLING" >>"${log1}"
     echo "Reason: Program did not exit with code 139 after segfault in second command" >>"${log1}"
     echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 
   ${RM} "${segfault_prog}.c" "$segfault_prog"
@@ -316,7 +382,7 @@ test_outfile_creation() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: OUTPUT FILE CREATION" >>"${log1}"
     echo "Reason: Output file was not created while first command was running" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 
   wait $pid
@@ -340,7 +406,7 @@ test_invalid_infile() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: EXEC WITH INVALID INPUT FILE" >>"${log1}"
     echo "Reason: First command was executed despite invalid infile" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   fi
 
   ${RM} "$cmd_script" "$marker_file"
@@ -361,13 +427,39 @@ test_invalid_outfile() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: EXEC WITH INVALID OUTPUT FILE" >>"${log1}"
     echo "Reason: Second command was executed despite invalid outfile" >>"${log1}"
-    echo "{$BR}" >>"${log1}"
+    echo "{$TEST_BREAK}" >>"${log1}"
   else
     printf "${BB}Invalid outfile:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   fi
 
   ${RM} "$cmd_script" "$marker_file"
+}
+
+test_message_consistency() {
+  local first_output=""
+  local current_output=""
+
+  exec="$TIMEOUT_FULL ./$NAME"
+  first_output=$($exec "${in1}" "xxx" "/xxx/xxx" "${out1}" 2>&1)
+
+  for _ in $(seq 2 20); do
+    current_output=$($exec "${in1}" "xxx" "/xxx/xxx" "${out1}" 2>&1)
+
+    if [ "$current_output" != "$first_output" ]; then
+      printf "${BB}Message consistency:${RC} ${RB}KO${RC}\n"
+      TESTS_FAILED=$((TESTS_FAILED + 1))
+      echo "Test failed: MESSAGE CONSISTENCY" >>"${log1}"
+      echo "Reason: Different error outputs for same input, logging done in child process" >>"${log1}"
+      echo "Original: $first_output" >>"${log1}"
+      echo "Against: $current_output" >>"${log1}"
+      echo "${TEST_BREAK}" >>"${log1}"
+      return
+    fi
+  done
+
+  printf "${BB}Message consistency:${RC} ${GB}OK${RC}\n"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 # **************************************************************************** #
@@ -382,6 +474,7 @@ compare_results() {
   local outfile2="$5"
   local title="$6"
   local empty_cmds=0
+  local output_result=0
 
   # Check if testing empty commands
   if [ -z "$(echo "$cmd1" | $TR_CMD -d '[:space:]')" ] ||
@@ -408,78 +501,35 @@ compare_results() {
   fi
   shell_exit=$?
 
-  # Check for output diffs
-  if [ -n "$DIFF_CMD" ]; then
-    diff_output=$($DIFF_CMD "$outfile1" "$outfile2")
-  else
-    diff_output="not available"
+  # Check if outputs match, eg. command not found
+  error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
+  if [ -n "$pipex_output" ] && [ -n "$shell_output" ]; then
+    if ! echo "$pipex_output" | $GREP_CMD -qF "$error_msg"; then
+      output_result=1
+    fi
   fi
+
+  # Check for output diffs
+  diff_output=$($DIFF_CMD "$outfile1" "$outfile2")
 
   # Check for memory leaks
   leak_output=$(check_leaks "$infile" "$cmd1" "$cmd2" "$outfile1")
   leak_result=$?
 
-  # Print test title
-  print_title_line "$title"
-
-  # Print used commands
-  printf "${GB}Pipex:${RC} ./pipex $infile \"$cmd1\" \"$cmd2\" $outfile1\n"
-  if [ "$empty_cmds" -eq 1 ]; then
-    printf "${GB}Shell:${RC} < $infile \"$cmd1\" | \"$cmd2\" > $outfile2\n\n"
-  else
-    printf "${GB}Shell:${RC} < $infile $cmd1 | $cmd2 > $outfile2\n\n"
-  fi
-
-  # Print both outputs
-  shell_output=$(echo "$shell_output" | $SED_CMD 's/line 1: //g')
-  [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}"
-  [ -n "$shell_output" ] && printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
-  [ -n "$pipex_output" ] && printf "${GB}Exits:${RC} pipex: $pipex_exit | shell: $shell_exit${RC}\n\n"
-
-  # Check and print error message
-  error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
-  if [ -n "$pipex_output" ] && [ -n "$shell_output" ]; then
-    if echo "$pipex_output" | $GREP_CMD -qF "$error_msg"; then
-      printf "${BB}Message:${RC} ${GB}OK${RC}\n"
-    else
-      printf "${BB}Message:${RC} ${RB}KO${RC}\n"
-    fi
-  fi
-
-  # Print exit codes
-  if [ "$pipex_exit" -eq "$shell_exit" ]; then
-    printf "${BB}Exit code:${RC} ${GB}OK${RC}\n"
-  else
-    printf "${BB}Exit code:${RC} ${RB}KO${RC}\n"
-  fi
-
-  # Print diffs
-  if [ -z "$DIFF_CMD" ]; then
-    printf "${BB}Diff:${RC} ${YB}not available${RC}\n"
-  elif [ -z "$diff_output" ] || [ ! -w "$outfile1" ]; then
-    printf "${BB}Diff:${RC} ${GB}OK${RC}\n"
-  else
-    printf "${BB}Diff:${RC} ${RB}KO${RC}\n"
-  fi
-
-  # Print leaks
-  if [ -z "$VALGRIND_CMD" ]; then
-    printf "${BB}Leaks:${RC} ${YB}not available${RC}\n"
-  elif [ "$leak_result" -ne 1 ]; then
-    printf "${BB}Leaks:${RC} ${GB}OK${RC}\n"
-  else
-    printf "${BB}Leaks:${RC} ${RB}KO${RC}\n"
-  fi
+  # Print result
+  print_test_result
 
   # Update error log if test did not pass
-  if [ "$pipex_exit" -ne "$shell_exit" ] || [ "$leak_result" -eq 1 ] ||
-    { [ -n "$diff_output" ] && [ -w "$outfile1" ] &&
-      [ "$diff_output" != "not available" ]; }; then
+  if [ "$output_result" -eq 1 ] || [ "$leak_result" -eq 1 ] ||
+    { [ -n "$diff_output" ] && [ -w "$outfile1" ]; } ||
+    [ "$pipex_exit" -ne "$shell_exit" ]; then
     TESTS_FAILED=$((TESTS_FAILED + 1))
     update_error_log "$title"
   else
     TESTS_PASSED=$((TESTS_PASSED + 1))
   fi
+
+  TEST_CURRENT=$((TEST_CURRENT + 1))
 }
 
 # **************************************************************************** #
@@ -551,6 +601,7 @@ run_extra_tests() {
   test_outfile_creation
   test_invalid_infile
   test_invalid_outfile
+  test_message_consistency
 }
 
 # **************************************************************************** #
