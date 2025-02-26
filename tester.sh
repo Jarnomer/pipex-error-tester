@@ -15,6 +15,8 @@ PB="\033[1;35m" # Bold Purple
 CB="\033[1;36m" # Bold Cyan
 RC="\033[0m"    # Reset Color
 
+BR="================================================================"
+
 # Globals
 RM="rm -rf"
 NAME=pipex
@@ -78,7 +80,7 @@ cleanup() {
 }
 
 handle_ctrlc() {
-  printf "\n${RB}Test interrupted by user.${RC}\n"
+  printf "\n${RB}Test interrupted by user.${RC}\n\n"
   cleanup
   exit 1
 }
@@ -87,9 +89,9 @@ setup_test_files() {
   touch ${in1}         # Universal infile
   touch ${out1}        # Pipex outfile
   touch ${out2}        # Shell outfile
-  cp ${NAME} ${bin1}   # Executable permission
-  mkdir -p "./${dir1}" # Directory as command
-  echo -n >"${log1}"   # create log file
+  cp ${NAME} ${bin1}   # Test binary
+  mkdir -p "./${dir1}" # Test directory
+  echo -n >"${log1}"   # Log file
 }
 
 check_leaks() {
@@ -180,7 +182,7 @@ update_error_log() {
     echo "Leaks result: OK" >>"${log1}"
   fi
 
-  echo "================================================" >>"${log1}"
+  echo "{$BR}" >>"${log1}"
 }
 
 # **************************************************************************** #
@@ -203,11 +205,11 @@ test_parallel_execution() {
     printf "${BB}Parallel execution:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    echo "Test failed: CONCURRENCY" >>"${log1}"
-    echo "Reason: Second command is waiting for first one to finish" >>"${log1}"
-    echo "================================================" >>"${log1}"
     printf "${BB}Parallel execution:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: CONCURRENCY" >>"${log1}"
+    echo "Reason: Second command is waiting for first one to finish" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   fi
 }
 
@@ -226,11 +228,11 @@ test_zombie_processes() {
     printf "${BB}Zombie processes:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    echo "Test failed: ZOMBIE PROCESSES" >>"${log1}"
-    echo "Reason: Program does not wait for child or replaces main with fork" >>"${log1}"
-    echo "================================================" >>"${log1}"
     printf "${BB}Zombie processes:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: ZOMBIE PROCESSES" >>"${log1}"
+    echo "Reason: Program does not wait for child or replaces main with fork" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   fi
 }
 
@@ -249,12 +251,12 @@ test_signal_handling() {
     printf "${BB}Interrupt handling:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
+    printf "${BB}Interrupt handling:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: INTERRUPT HANDLING" >>"${log1}"
     echo "Reason: Program did not exit with code 130 after receiving SIGINT" >>"${log1}"
     echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "================================================" >>"${log1}"
-    printf "${BB}Interrupt handling:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "{$BR}" >>"${log1}"
   fi
 }
 
@@ -291,7 +293,7 @@ EOF
     echo "Test failed: SEGFAULT HANDLING" >>"${log1}"
     echo "Reason: Program did not exit with code 139 after segfault in second command" >>"${log1}"
     echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "================================================" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   fi
 
   ${RM} "${segfault_prog}.c" "$segfault_prog"
@@ -310,11 +312,11 @@ test_outfile_creation() {
     printf "${BB}Outfile creation:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    echo "Test failed: OUTPUT FILE CREATION" >>"${log1}"
-    echo "Reason: Output file was not created while first command was running" >>"${log1}"
-    echo "================================================" >>"${log1}"
     printf "${BB}Outfile creation:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: OUTPUT FILE CREATION" >>"${log1}"
+    echo "Reason: Output file was not created while first command was running" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   fi
 
   wait $pid
@@ -334,11 +336,11 @@ test_invalid_infile() {
     printf "${BB}Invalid infile:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    echo "Test failed: EXEC WITH INVALID INPUT FILE" >>"${log1}"
-    echo "Reason: First command was executed despite invalid infile" >>"${log1}"
-    echo "================================================" >>"${log1}"
     printf "${BB}Invalid infile:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: EXEC WITH INVALID INPUT FILE" >>"${log1}"
+    echo "Reason: First command was executed despite invalid infile" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   fi
 
   ${RM} "$cmd_script" "$marker_file"
@@ -359,7 +361,7 @@ test_invalid_outfile() {
     TESTS_FAILED=$((TESTS_FAILED + 1))
     echo "Test failed: EXEC WITH INVALID OUTPUT FILE" >>"${log1}"
     echo "Reason: Second command was executed despite invalid outfile" >>"${log1}"
-    echo "================================================" >>"${log1}"
+    echo "{$BR}" >>"${log1}"
   else
     printf "${BB}Invalid outfile:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -430,9 +432,9 @@ compare_results() {
 
   # Print both outputs
   shell_output=$(echo "$shell_output" | $SED_CMD 's/line 1: //g')
-  [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
+  [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}"
   [ -n "$shell_output" ] && printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
-  [ "$pipex_exit" -ne 0 ] && printf "${GB}Exit:${RC} pipex: $pipex_exit | shell: $shell_exit${RC}\n\n"
+  [ -n "$pipex_output" ] && printf "${GB}Exits:${RC} pipex: $pipex_exit | shell: $shell_exit${RC}\n\n"
 
   # Check and print error message
   error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
