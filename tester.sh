@@ -121,7 +121,6 @@ print_summary() {
     printf "${GB}All tests passed!${RC}\n"
   else
     printf "${RB}See ${log1} for details.${RC}\n"
-    printf "${YB}Extra tests do not generate log entries!"
   fi
 }
 
@@ -152,9 +151,9 @@ update_error_log() {
   echo "================================================" >>"${log1}"
 }
 
-test_concurrency() {
+test_parallel_execution() {
   if [ -z "$TIMEOUT_FULL" ]; then
-    printf "${BB}Concurrency:${RC} ${YB}not available${RC}\n"
+    printf "${BB}Parallel execution:${RC} ${YB}SKIPPED${RC} - 'timeout' not available\n"
     return
   fi
 
@@ -165,10 +164,13 @@ test_concurrency() {
 
   elapsed_time=$(echo "$end_time - $start_time" | $BC_CMD)
   if (($(echo "$elapsed_time < 1" | $BC_CMD -l))); then
-    printf "${BB}Concurrency:${RC} ${GB}OK${RC}\n"
+    printf "${BB}Parallel execution:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    printf "${BB}Concurrency:${RC} ${RB}KO${RC}\n"
+    echo "Test failed: CONCURRENCY" >>"${log1}"
+    echo "Reason: Second command is waiting for first one to finish" >>"${log1}"
+    echo "================================================" >>"${log1}"
+    printf "${BB}Parallel execution:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
 }
@@ -179,38 +181,155 @@ test_zombie_processes() {
   exec="$TIMEOUT_FULL ./$NAME"
   $exec "${in1}" "sleep 1" "echo test" "${out1}" 2>/dev/null
 
-  $SLEEP_CMD 0.5
+  sleep 0.5
 
   zombie_count=$($PS_CMD aux | $GREP_CMD -v grep |
     $GREP_CMD "pipex" | $GREP_CMD -w 'Z' | $WC_CMD -l)
 
-  if [ "$zombie_count" -gt 0 ]; then
-    printf "${BB}Zombies:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-  else
-    printf "${BB}Zombies:${RC} ${GB}OK${RC}\n"
+  if [ "$zombie_count" -eq 0 ]; then
+    printf "${BB}Zombie processes:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    echo "Test failed: ZOMBIE PROCESSES" >>"${log1}"
+    echo "Reason: Program does not wait for child or replaces main with fork" >>"${log1}"
+    echo "================================================" >>"${log1}"
+    printf "${BB}Zombie processes:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
 }
 
-test_signal_handler() {
+test_signal_handling() {
   exec="$TIMEOUT_FULL ./$NAME"
   $exec "${in1}" "echo" "sleep 2" "${out1}" >/dev/null &
 
-  pid=$!
-  sleep 0.5
+  local pid=$!
+  sleep 0.2
 
   kill -SIGINT "$pid"
   wait "$pid"
-  exit_code=$?
+  local exit_code=$?
 
   if [ "$exit_code" -eq 130 ]; then
-    printf "${BB}Signals:${RC} ${GB}OK${RC}\n"
+    printf "${BB}Interrupt handling:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   else
-    printf "${BB}Signals:${RC} ${RB}KO${RC}\n"
+    echo "Test failed: INTERRUPT HANDLING" >>"${log1}"
+    echo "Reason: Program did not exit with code 130 after receiving SIGINT" >>"${log1}"
+    echo "Actual exit code: $exit_code" >>"${log1}"
+    echo "================================================" >>"${log1}"
+    printf "${BB}Interrupt handling:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
+}
+
+test_segfault_handling() {
+  local segfault_prog="segfault_test"
+
+  cat >"${segfault_prog}.c" <<EOF
+#include <stdlib.h>
+int main() {
+    char *ptr = NULL;
+    *ptr = 'x';
+    return 0;
+}
+EOF
+
+  gcc -o "$segfault_prog" "${segfault_prog}.c" 2>/dev/null
+
+  if [ ! -x "./$segfault_prog" ]; then
+    printf "${BB}Segfault test:${RC} ${YB}SKIPPED${RC} - Could not compile test program\n"
+    ${RM} "${segfault_prog}.c" "$segfault_prog"
+    return
+  fi
+
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "${in1}" "echo hello" "./$segfault_prog" "${out1}" 2>&1
+  local exit_code=$?
+
+  if [ "$exit_code" -eq 139 ]; then
+    printf "${BB}Segfault handling:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    printf "${BB}Segfault handling:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: SEGFAULT HANDLING" >>"${log1}"
+    echo "Reason: Program did not exit with code 139 after segfault in second command" >>"${log1}"
+    echo "Actual exit code: $exit_code" >>"${log1}"
+    echo "================================================" >>"${log1}"
+  fi
+
+  ${RM} "${segfault_prog}.c" "$segfault_prog"
+}
+
+test_outfile_creation() {
+  ${RM} ${out1}
+
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "${in1}" "sleep 1" "echo test" "${out1}" >/dev/null 2>&1 &
+
+  local pid=$!
+  $SLEEP_CMD 0.2
+
+  if [ -f "${out1}" ]; then
+    printf "${BB}Outfile creation:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    echo "Test failed: OUTPUT FILE CREATION" >>"${log1}"
+    echo "Reason: Output file was not created while first command was running" >>"${log1}"
+    echo "================================================" >>"${log1}"
+    printf "${BB}Outfile creation:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  fi
+
+  wait $pid
+}
+
+test_invalid_infile() {
+  local cmd_script="exec_marker.sh"
+  local marker_file="executed_cmd1"
+
+  echo '#!/bin/bash; touch '"$marker_file"'; exit 0' >"$cmd_script"
+  chmod +x "$cmd_script"
+
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "nonexistent" "./$cmd_script" "cat" "${out1}" >/dev/null 2>&1
+
+  if ! [ -f "$marker_file" ]; then
+    printf "${BB}Invalid infile:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    echo "Test failed: EXEC WITH INVALID INPUT FILE" >>"${log1}"
+    echo "Reason: First command was executed despite invalid infile" >>"${log1}"
+    echo "================================================" >>"${log1}"
+    printf "${BB}Invalid infile:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  fi
+
+  ${RM} "$cmd_script" "$marker_file"
+}
+
+test_invalid_outfile() {
+  local cmd_script="exec_marker2.sh"
+  local marker_file="executed_cmd2"
+
+  echo '#!/bin/bash; touch '"$marker_file"'; exit 0' >"$cmd_script"
+  chmod +x "$cmd_script"
+
+  exec="$TIMEOUT_FULL ./$NAME"
+  $exec "${in1}" "cat" "./$cmd_script" "${dir1}" >/dev/null 2>&1
+
+  if [ -f "$marker_file" ]; then
+    printf "${BB}Invalid outfile:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo "Test failed: EXEC WITH INVALID OUTPUT FILE" >>"${log1}"
+    echo "Reason: Second command was executed despite invalid outfile" >>"${log1}"
+    echo "================================================" >>"${log1}"
+  else
+    printf "${BB}Invalid outfile:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  fi
+
+  ${RM} "$cmd_script" "$marker_file"
 }
 
 check_leaks() {
@@ -356,6 +475,7 @@ run_error_tests() {
   chmod -w ${out1}
   chmod -w ${out2}
   compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "OUTFILE NO WRITE PERMISSION, VALID CMDS"
+  compare_results "${in1}" "ls" "wc" "${dir1}" "${dir1}" "OUTFILE IS FOLDER, VALID CMDS"
   chmod +w ${out1}
   chmod +w ${out2}
 
@@ -383,7 +503,7 @@ run_error_tests() {
   unset PATH
   compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "PATH ENVP DOES NOT EXIST, INVALID CMDS"
   compare_results "${in1}" "$LS_CMD" "wc" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), INVALID CMD2"
-  compare_results "${in1}" "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), VALID CMD2 (ABS)"
+  compare_results "${in1}" "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "NO PATH ENVP, VALID CMDS (ABS)"
   export PATH="$OLD_PATH"
 }
 
@@ -396,14 +516,18 @@ run_valid_tests() {
   compare_results $infile "sort" "uniq" "${out1}" "${out2}" "SORT CMD1, UNIQ CMD2"
   compare_results $infile "tr a-z A-Z" "tee ${out2}" "${out1}" "${out2}" "TR CMD1, TEE CMD2"
   compare_results $infile "echo -n hello" "wc -c" "${out1}" "${out2}" "ECHO CMD1, WC CMD2"
-  compare_results $infile "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "LS CMD1 (PATH), CAT CMD2 (PATH)"
+  compare_results $infile "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "LS CMD1 (ABS), CAT CMD2 (ABS)"
 }
 
 run_extra_tests() {
   print_header "EXTRA TESTS"
-  test_concurrency
-  test_signal_handler
+  test_parallel_execution
+  test_signal_handling
+  test_segfault_handling
   test_zombie_processes
+  test_outfile_creation
+  test_invalid_infile
+  test_invalid_outfile
 }
 
 trap handle_ctrlc SIGINT
