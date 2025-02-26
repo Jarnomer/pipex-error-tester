@@ -59,6 +59,10 @@ if [ -n "$TIMEOUT_CMD" ]; then
   TIMEOUT_FULL="$TIMEOUT_CMD 2"
 fi
 
+# **************************************************************************** #
+#    UTILITIES
+# **************************************************************************** #
+
 check_requirements() {
   if [ -z "$TIMEOUT_FULL" ]; then
     printf "${YB}WARNING:${RC} ${C}'timeout'${RC} not available.\n"
@@ -87,6 +91,34 @@ setup_test_files() {
   mkdir -p "./${dir1}" # Directory as command
   echo -n >"${log1}"   # create log file
 }
+
+check_leaks() {
+  local infile="$1"
+  local cmd1="$2"
+  local cmd2="$3"
+  local outfile="$4"
+  local has_leaks=0
+  local open_fds=0
+
+  leak_output=$($VALGRIND_FULL --log-file=/dev/stdout \
+    ./pipex "$infile" "$cmd1" "$cmd2" "$outfile" 2>/dev/null)
+
+  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
+    $TAIL_CMD -n 1 | $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+')
+
+  if echo "$leak_output" | $GREP_CMD -q "definitely lost: [^0]" ||
+    echo "$leak_output" | $GREP_CMD -q "indirectly lost: [^0]" ||
+    { [ -n "$open_fds" ] && [ "$open_fds" -gt 4 ]; }; then
+    has_leaks=1
+  fi
+
+  echo "$leak_output"
+  return $has_leaks
+}
+
+# **************************************************************************** #
+#    PRINTING AND LOGGING
+# **************************************************************************** #
 
 print_title_line() {
   local title="$1"
@@ -150,6 +182,10 @@ update_error_log() {
 
   echo "================================================" >>"${log1}"
 }
+
+# **************************************************************************** #
+#    EXTRA TESTS
+# **************************************************************************** #
 
 test_parallel_execution() {
   if [ -z "$TIMEOUT_FULL" ]; then
@@ -237,7 +273,7 @@ EOF
   gcc -o "$segfault_prog" "${segfault_prog}.c" 2>/dev/null
 
   if [ ! -x "./$segfault_prog" ]; then
-    printf "${BB}Segfault test:${RC} ${YB}SKIPPED${RC} - Could not compile test program\n"
+    printf "${BB}Segfault handling:${RC} ${YB}SKIPPED${RC} - Could not compile test program\n"
     ${RM} "${segfault_prog}.c" "$segfault_prog"
     return
   fi
@@ -332,32 +368,11 @@ test_invalid_outfile() {
   ${RM} "$cmd_script" "$marker_file"
 }
 
-check_leaks() {
-  local infile="$1"
-  local cmd1="$2"
-  local cmd2="$3"
-  local outfile="$4"
-  local has_leaks=0
-  local open_fds=0
-
-  leak_output=$($VALGRIND_FULL --log-file=/dev/stdout \
-    ./pipex "$infile" "$cmd1" "$cmd2" "$outfile" 2>/dev/null)
-
-  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
-    $TAIL_CMD -n 1 | $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+')
-
-  if echo "$leak_output" | $GREP_CMD -q "definitely lost: [^0]" ||
-    echo "$leak_output" | $GREP_CMD -q "indirectly lost: [^0]" ||
-    { [ -n "$open_fds" ] && [ "$open_fds" -gt 4 ]; }; then
-    has_leaks=1
-  fi
-
-  echo "$leak_output"
-  return $has_leaks
-}
+# **************************************************************************** #
+#    COMPARE FUNCTION
+# **************************************************************************** #
 
 compare_results() {
-  # Set local variables for readibility
   local infile="$1"
   local cmd1="$2"
   local cmd2="$3"
@@ -463,6 +478,10 @@ compare_results() {
   fi
 }
 
+# **************************************************************************** #
+#    TEST RUNNERS
+# **************************************************************************** #
+
 run_error_tests() {
   print_header "ERROR TESTS"
   compare_results "noinfile" "ls" "wc" "${out1}" "${out2}" "INFILE DOES NOT EXIST"
@@ -529,6 +548,10 @@ run_extra_tests() {
   test_invalid_infile
   test_invalid_outfile
 }
+
+# **************************************************************************** #
+#    MAIN RUNNER
+# **************************************************************************** #
 
 trap handle_ctrlc SIGINT
 
