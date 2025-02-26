@@ -150,9 +150,9 @@ print_summary() {
   printf "${BB}Tests failed:${RC} ${RB}$TESTS_FAILED${RC}\n\n"
 
   if [ $TESTS_FAILED -eq 0 ]; then
-    printf "${GB}All tests passed!${RC}\n"
+    printf "${GB}All tests passed!${RC}\n\n"
   else
-    printf "${RB}See ${log1} for details.${RC}\n"
+    printf "${RB}See ${log1} for details.${RC}\n\n"
   fi
 }
 
@@ -429,8 +429,10 @@ compare_results() {
   fi
 
   # Print both outputs
+  shell_output=$(echo "$shell_output" | $SED_CMD 's/line 1: //g')
   [ -n "$pipex_output" ] && printf "${GB}Pipex:${RC} $pipex_output${RC}\n"
   [ -n "$shell_output" ] && printf "${GB}Shell:${RC} $shell_output${RC}\n\n"
+  [ "$pipex_exit" -ne 0 ] && printf "${GB}Exit:${RC} pipex: $pipex_exit | shell: $shell_exit${RC}\n\n"
 
   # Check and print error message
   error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
