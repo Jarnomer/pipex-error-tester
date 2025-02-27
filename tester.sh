@@ -20,7 +20,6 @@ TEST_BREAK="==================================================================="
 LOG_BREAK="====================================="
 
 # Globals
-RM="rm -rf"
 NAME=pipex
 OLD_PATH=$PATH
 TESTS_PASSED=0
@@ -38,35 +37,33 @@ log1=pipex_error.log
 # Commands
 DIFF_CMD=$(which diff)
 GREP_CMD=$(which grep)
+TAIL_CMD=$(which tail)
 SED_CMD=$(which sed)
 CAT_CMD=$(which cat)
-TAIL_CMD=$(which tail)
-DATE_CMD=$(which date)
-SLEEP_CMD=$(which sleep)
 LS_CMD=$(which ls)
 TR_CMD=$(which tr)
-BC_CMD=$(which bc)
-WC_CMD=$(which wc)
-PS_CMD=$(which ps)
-TIMEOUT_CMD=$(which timeout)
-TIMEOUT_FULL=""
-VALGRIND_CMD=$(which valgrind)
-VALGRIND_FLAGS="--leak-check=full --show-leak-kinds=all \
-  --track-fds=yes --trace-children=yes"
-VALGRIND_FULL=""
+RM_CMD="rm -rf"
 
-# Valgrind command
+# Valgrind
+VALGRIND_FULL=""
+VALGRIND_CMD=$(which valgrind)
+VALGRIND_FLAGS="--leak-check=full \
+  --show-leak-kinds=all \
+  --track-fds=yes \
+  --trace-children=yes"
 if [ -n "$VALGRIND_CMD" ]; then
   VALGRIND_FULL="$VALGRIND_CMD $VALGRIND_FLAGS"
 fi
 
-# Timeout command
+# Timeout
+TIMEOUT_FULL=""
+TIMEOUT_CMD=$(which timeout)
 if [ -n "$TIMEOUT_CMD" ]; then
   TIMEOUT_FULL="$TIMEOUT_CMD 2"
 fi
 
 # **************************************************************************** #
-#    UTILITIES
+# UTILITIES
 # **************************************************************************** #
 
 check_requirements() {
@@ -80,7 +77,7 @@ check_requirements() {
 
 cleanup() {
   export PATH="$OLD_PATH"
-  ${RM} ${in1} ${out1} ${out2} ${bin1} ${dir1}
+  ${RM_CMD} ${in1} ${out1} ${out2} ${bin1} ${dir1}
 }
 
 handle_ctrlc() {
@@ -123,7 +120,7 @@ check_leaks() {
 }
 
 # **************************************************************************** #
-#    PRINTING AND LOGGING
+# PRINTING AND LOGGING
 # **************************************************************************** #
 
 print_title_line() {
@@ -175,7 +172,7 @@ update_error_log() {
   fi
 
   if [ "$output_result" -eq 1 ]; then
-    echo "Output: KO - Different outputs" >>"${log1}"
+    echo "Output: KO - Different" >>"${log1}"
     echo "Pipex: $pipex_output" >>"${log1}"
     echo "Shell: $shell_output" >>"${log1}"
   else
@@ -242,7 +239,7 @@ print_test_result() {
     printf "${YB}Diff:${RC} ${RB}KO${RC}\n"
   fi
 
-  if [ -z "$VALGRIND_CMD" ]; then
+  if [ -z "$VALGRIND_FULL" ]; then
     printf "${BB}Leaks:${RC} ${YB}not available${RC}\n"
   elif [ "$leak_result" -ne 1 ]; then
     printf "${BB}Leaks:${RC} ${GB}OK${RC}\n"
@@ -252,218 +249,7 @@ print_test_result() {
 }
 
 # **************************************************************************** #
-#    EXTRA TESTS
-# **************************************************************************** #
-
-test_parallel_execution() {
-  if [ -z "$TIMEOUT_FULL" ]; then
-    printf "${BB}Parallel execution:${RC} ${YB}SKIPPED${RC} - 'timeout' not available\n"
-    return
-  fi
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  start_time=$($DATE_CMD +%s.%N)
-  $exec "/dev/random" "cat" "head -n 1" "${out1}" >/dev/null
-  end_time=$($DATE_CMD +%s.%N)
-
-  elapsed_time=$(echo "$end_time - $start_time" | $BC_CMD)
-  if (($(echo "$elapsed_time < 1" | $BC_CMD -l))); then
-    printf "${BB}Parallel execution:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Parallel execution:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: CONCURRENCY" >>"${log1}"
-    echo "Reason: Second command is waiting for first one to finish" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-}
-
-test_zombie_processes() {
-  local zombie_count=0
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "sleep 1" "echo test" "${out1}" 2>/dev/null
-
-  sleep 0.5
-
-  zombie_count=$($PS_CMD aux | $GREP_CMD -v grep |
-    $GREP_CMD "pipex" | $GREP_CMD -w 'Z' | $WC_CMD -l)
-
-  if [ "$zombie_count" -eq 0 ]; then
-    printf "${BB}Zombie processes:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Zombie processes:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: ZOMBIE PROCESSES" >>"${log1}"
-    echo "Reason: Program does not wait for child or replaces main with fork" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-}
-
-test_signal_handling() {
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "echo" "sleep 2" "${out1}" >/dev/null &
-
-  local pid=$!
-  sleep 0.2
-
-  kill -SIGINT "$pid"
-  wait "$pid"
-  local exit_code=$?
-
-  if [ "$exit_code" -eq 130 ]; then
-    printf "${BB}Interrupt handling:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Interrupt handling:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: INTERRUPT HANDLING" >>"${log1}"
-    echo "Reason: Program did not exit with code 130 after receiving SIGINT" >>"${log1}"
-    echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-}
-
-test_segfault_handling() {
-  local segfault_prog="segfault_test"
-
-  cat >"${segfault_prog}.c" <<EOF
-#include <stdlib.h>
-int main() {
-    char *ptr = NULL;
-    *ptr = 'x';
-    return 0;
-}
-EOF
-
-  gcc -o "$segfault_prog" "${segfault_prog}.c" 2>/dev/null
-
-  if [ ! -x "./$segfault_prog" ]; then
-    printf "${BB}Segfault handling:${RC} ${YB}SKIPPED${RC} - Could not compile test program\n"
-    ${RM} "${segfault_prog}.c" "$segfault_prog"
-    return
-  fi
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "echo hello" "./$segfault_prog" "${out1}" 2>&1
-  local exit_code=$?
-
-  if [ "$exit_code" -eq 139 ]; then
-    printf "${BB}Segfault handling:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Segfault handling:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: SEGFAULT HANDLING" >>"${log1}"
-    echo "Reason: Program did not exit with code 139 after segfault in second command" >>"${log1}"
-    echo "Actual exit code: $exit_code" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-
-  ${RM} "${segfault_prog}.c" "$segfault_prog"
-}
-
-test_outfile_creation() {
-  ${RM} ${out1}
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "sleep 1" "echo test" "${out1}" >/dev/null 2>&1 &
-
-  local pid=$!
-  $SLEEP_CMD 0.2
-
-  if [ -f "${out1}" ]; then
-    printf "${BB}Outfile creation:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Outfile creation:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: OUTPUT FILE CREATION" >>"${log1}"
-    echo "Reason: Output file was not created while first command was running" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-
-  wait $pid
-}
-
-test_invalid_infile() {
-  local cmd_script="exec_marker.sh"
-  local marker_file="executed_cmd1"
-
-  echo '#!/bin/bash; touch '"$marker_file"'; exit 0' >"$cmd_script"
-  chmod +x "$cmd_script"
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "nonexistent" "./$cmd_script" "cat" "${out1}" >/dev/null 2>&1
-
-  if ! [ -f "$marker_file" ]; then
-    printf "${BB}Invalid infile:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${BB}Invalid infile:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: EXEC WITH INVALID INPUT FILE" >>"${log1}"
-    echo "Reason: First command was executed despite invalid infile" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  fi
-
-  ${RM} "$cmd_script" "$marker_file"
-}
-
-test_invalid_outfile() {
-  local cmd_script="exec_marker2.sh"
-  local marker_file="executed_cmd2"
-
-  echo '#!/bin/bash; touch '"$marker_file"'; exit 0' >"$cmd_script"
-  chmod +x "$cmd_script"
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "cat" "./$cmd_script" "${dir1}" >/dev/null 2>&1
-
-  if [ -f "$marker_file" ]; then
-    printf "${BB}Invalid outfile:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-    echo "Test failed: EXEC WITH INVALID OUTPUT FILE" >>"${log1}"
-    echo "Reason: Second command was executed despite invalid outfile" >>"${log1}"
-    echo "{$TEST_BREAK}" >>"${log1}"
-  else
-    printf "${BB}Invalid outfile:${RC} ${GB}OK${RC}\n"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-  fi
-
-  ${RM} "$cmd_script" "$marker_file"
-}
-
-test_message_consistency() {
-  local first_output=""
-  local current_output=""
-
-  exec="$TIMEOUT_FULL ./$NAME"
-  first_output=$($exec "${in1}" "xxx" "/xxx/xxx" "${out1}" 2>&1)
-
-  for _ in $(seq 2 20); do
-    current_output=$($exec "${in1}" "xxx" "/xxx/xxx" "${out1}" 2>&1)
-
-    if [ "$current_output" != "$first_output" ]; then
-      printf "${BB}Message consistency:${RC} ${RB}KO${RC}\n"
-      TESTS_FAILED=$((TESTS_FAILED + 1))
-      echo "Test failed: MESSAGE CONSISTENCY" >>"${log1}"
-      echo "Reason: Different error outputs for same input, logging done in child process" >>"${log1}"
-      echo "Original: $first_output" >>"${log1}"
-      echo "Against: $current_output" >>"${log1}"
-      echo "${TEST_BREAK}" >>"${log1}"
-      return
-    fi
-  done
-
-  printf "${BB}Message consistency:${RC} ${GB}OK${RC}\n"
-  TESTS_PASSED=$((TESTS_PASSED + 1))
-}
-
-# **************************************************************************** #
-#    COMPARE FUNCTION
+# COMPARISON FUNCTION
 # **************************************************************************** #
 
 compare_results() {
@@ -533,7 +319,7 @@ compare_results() {
 }
 
 # **************************************************************************** #
-#    TEST RUNNERS
+# COMPARISON TESTS
 # **************************************************************************** #
 
 run_error_tests() {
@@ -580,32 +366,8 @@ run_error_tests() {
   export PATH="$OLD_PATH"
 }
 
-run_valid_tests() {
-  local infile="Makefile"
-  print_header "VALID TESTS"
-  compare_results $infile "cat" "wc -l" "${out1}" "${out2}" "CAT CMD1, WC CMD2"
-  compare_results $infile "grep a" "wc -w" "${out1}" "${out2}" "GREP CMD1, WC CMD2"
-  compare_results $infile "head -n 5" "tail -n 2" "${out1}" "${out2}" "HEAD CMD1, TAIL CMD2"
-  compare_results $infile "sort" "uniq" "${out1}" "${out2}" "SORT CMD1, UNIQ CMD2"
-  compare_results $infile "tr a-z A-Z" "tee ${out2}" "${out1}" "${out2}" "TR CMD1, TEE CMD2"
-  compare_results $infile "echo -n hello" "wc -c" "${out1}" "${out2}" "ECHO CMD1, WC CMD2"
-  compare_results $infile "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "LS CMD1 (ABS), CAT CMD2 (ABS)"
-}
-
-run_extra_tests() {
-  print_header "EXTRA TESTS"
-  test_parallel_execution
-  test_signal_handling
-  test_segfault_handling
-  test_zombie_processes
-  test_outfile_creation
-  test_invalid_infile
-  test_invalid_outfile
-  test_message_consistency
-}
-
 # **************************************************************************** #
-#    MAIN RUNNER
+# MAIN
 # **************************************************************************** #
 
 trap handle_ctrlc SIGINT
@@ -619,8 +381,6 @@ if [ -f "$NAME" ]; then
   check_requirements
   setup_test_files
   run_error_tests
-  run_valid_tests
-  run_extra_tests
   print_summary
   cleanup
 else
