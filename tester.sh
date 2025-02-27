@@ -120,7 +120,7 @@ check_leaks() {
 }
 
 # **************************************************************************** #
-# PRINTING AND LOGGING
+# PRINT UTILS
 # **************************************************************************** #
 
 print_title_line() {
@@ -158,6 +158,10 @@ print_summary() {
     printf "${RB}See ${log1} for details.${RC}\n\n"
   fi
 }
+
+# **************************************************************************** #
+# LOGGING
+# **************************************************************************** #
 
 update_error_log() {
   local title="$1"
@@ -200,6 +204,10 @@ update_error_log() {
   echo "$TEST_BREAK" >>"${log1}"
   echo >>"${log1}"
 }
+
+# **************************************************************************** #
+# PRINT RESULT
+# **************************************************************************** #
 
 print_test_result() {
   print_title_line "$title"
@@ -249,7 +257,7 @@ print_test_result() {
 }
 
 # **************************************************************************** #
-# COMPARISON FUNCTION
+# COMPARE FUNCTION
 # **************************************************************************** #
 
 compare_results() {
@@ -319,7 +327,7 @@ compare_results() {
 }
 
 # **************************************************************************** #
-# COMPARISON TESTS
+# TESTS
 # **************************************************************************** #
 
 run_error_tests() {
@@ -360,7 +368,7 @@ run_error_tests() {
   compare_results "${in1}" "ls -?" "wc -9001" "${out1}" "${out2}" "BAD ARGS CMD1, BAD ARGS CMD2"
 
   unset PATH
-  compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "PATH ENVP DOES NOT EXIST, INVALID CMDS"
+  compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "NO PATH ENVP, INVALID CMDS"
   compare_results "${in1}" "$LS_CMD" "wc" "${out1}" "${out2}" "NO PATH ENVP, VALID CMD1 (ABS), INVALID CMD2"
   compare_results "${in1}" "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "NO PATH ENVP, VALID CMDS (ABS)"
   export PATH="$OLD_PATH"
