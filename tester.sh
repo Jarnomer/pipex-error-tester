@@ -2,6 +2,7 @@
 
 source "$(dirname "$0")/variables.sh"
 source "$(dirname "$0")/extras.sh"
+source "$(dirname "$0")/bonus.sh"
 source "$(dirname "$0")/utils.sh"
 
 update_error_log() {
@@ -250,19 +251,6 @@ run_special_tests() {
   done
 }
 
-run_extra_tests() {
-  print_header "EXTRA TESTS"
-  setup_test_files
-  test_parallel_execution
-  test_signal_handling
-  test_segfault_handling
-  test_zombie_processes
-  test_outfile_creation
-  test_invalid_infile
-  test_invalid_outfile
-  test_message_consistency
-  cleanup
-}
 
 parse_arguments() {
   local count=$(get_error_title count)
@@ -289,12 +277,20 @@ parse_arguments() {
       VALID_TESTS=1
       shift
       ;;
+    -e | --extra)
+      EXTRA_TESTS=1
+      shift
+      ;;
+    -b | --bonus)
+      BONUS_TESTS=1
+      shift
+      ;;
     -s | --special)
       SPECIAL_TESTS=1
       shift
       ;;
-    -e | --extra)
-      EXTRA_TESTS=1
+    -a | --all)
+      ALL_TESTS=1
       shift
       ;;
     -l | --list)
@@ -327,10 +323,15 @@ fi
 if [ -f "$NAME" ]; then
   check_requirements
   setup_test_files
-  if [ $EXTRA_TESTS -eq 1 ]; then
+  if [ $ALL_TESTS -eq 1 ]; then
+    run_error_tests
+    run_valid_tests
     run_extra_tests
+    # run_bonus_tests
   elif [ $VALID_TESTS -eq 1 ]; then
     run_valid_tests
+  elif [ $EXTRA_TESTS -eq 1 ]; then
+    run_extra_tests
   elif [ $SPECIAL_TESTS -eq 1 ]; then
     run_special_tests
   else

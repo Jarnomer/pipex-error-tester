@@ -14,7 +14,7 @@ BB="\033[1;34m" # Bold Blue
 PB="\033[1;35m" # Bold Purple
 CB="\033[1;36m" # Bold Cyan
 
-RC="\033[0m" # Reset
+RC="\033[0m" # Reset Color
 
 TEST_BREAK="==================================================================="
 LOG_BREAK="====================================="
@@ -29,6 +29,8 @@ SELECTED_TESTS=""
 SPECIAL_TESTS=0
 EXTRA_TESTS=0
 VALID_TESTS=0
+BONUS_TESTS=0
+ALL_TESTS=0
 
 in1=infile
 out1=outfile1

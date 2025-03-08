@@ -35,6 +35,24 @@ get_error_title() {
   fi
 }
 
+get_extra_title() {
+  local extra_titles=(
+    "PARALLEL EXECUTION"
+    "INTERRUPT HANDLING"
+    "SEGFAULT IN CMD2"
+    "INVALID INFILE"
+    "INVALID OUTFILE"
+    "OUTFILE CREATION"
+    "MESSAGE CONSISTENCY"
+    "ZOMBIE PROCESSES"
+  )
+  if [ "$1" = "count" ]; then
+    echo "${#extra_titles[@]}"
+  else
+    echo "${extra_titles[$TEST_CURRENT - 1]}"
+  fi
+}
+
 get_valid_title() {
   local valid_titles=(
     "LS AND WC"
@@ -124,30 +142,55 @@ check_leaks() {
   return $has_leaks
 }
 
+check_bonus_rule() {
+  if [ ! -f "Makefile" ]; then
+    printf "${BB}ERROR:${RC} - ${Y}'Makefile'${RC} not found\n"
+    exit 1
+    return
+  fi
+
+  if grep -q "^bonus:" Makefile; then
+    echo "0" # has bonus
+  else
+    echo "1"
+  fi
+}
+
 print_usage() {
-  printf "\n${CB}Usage:${RC} %s [OPTIONS]\n\n" "$0"
+  printf "\n${CB}Usage:${RC} %s ${GB}[OPTIONS]${RC}\n\n" "$0"
   printf "${GB}Options:${RC}\n"
-  printf "  -t, --test TEST_ID    Run specific test by ID\n"
-  printf "  -v, --valid           Run tests with valid commands\n"
-  printf "  -s, --special         Run tests with quotes and backslashes\n"
-  printf "  -e, --extra           Run separate logical tests\n"
-  printf "  -l, --list            List all available tests\n"
-  printf "  -h, --help            Show this help message\n\n"
+  printf "  ${GB}-t${RC}, ${G}--test ID  ${P}Run specific error test by ID${RC}\n"
+  printf "  ${GB}-v${RC}, ${G}--valid    ${P}Run tests with valid commands${RC}\n"
+  printf "  ${GB}-e${RC}, ${G}--extra    ${P}Run extra checks and logical tests${RC}\n"
+  printf "  ${GB}-b${RC}, ${G}--bonus    ${P}Run hdoc and multi command tests${RC}\n"
+  printf "  ${GB}-s${RC}, ${G}--special  ${P}Run tests with meta characters${RC}\n"
+  printf "  ${GB}-a${RC}, ${G}--all      ${P}Run error, valid, extra and bonus tests${RC}\n"
+  printf "  ${GB}-l${RC}, ${G}--list     ${P}List all available tests${RC}\n"
+  printf "  ${GB}-h${RC}, ${G}--help     ${P}Show this help message${RC}\n\n"
 }
 
 print_tests() {
   local count=$(get_error_title count)
 
-  print_header "ERROR_TESTS"
+  print_header "ERROR TESTS"
   for ((i = 1; i <= count; i++)); do
     printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_error_title)"
     TEST_CURRENT=$((TEST_CURRENT + 1))
   done
 
   TEST_CURRENT=1
-  count=$(get_valid_title count)
+  count=$(get_extra_title count)
 
-  print_header "VALID_TESTS"
+  print_header "EXTRA TESTS"
+  for ((i = 1; i <= count; i++)); do
+    printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_extra_title)"
+    TEST_CURRENT=$((TEST_CURRENT + 1))
+  done
+
+  TEST_CURRENT=1
+  count=$(get_valid_title count)
+  
+  print_header "VALID TESTS"
   for ((i = 1; i <= count; i++)); do
     printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_valid_title)"
     TEST_CURRENT=$((TEST_CURRENT + 1))
@@ -156,7 +199,7 @@ print_tests() {
   TEST_CURRENT=1
   count=$(get_special_title count)
 
-  print_header "SPECIAL_TESTS"
+  print_header "SPECIAL TESTS"
   for ((i = 1; i <= count; i++)); do
     printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_special_title)"
     TEST_CURRENT=$((TEST_CURRENT + 1))
