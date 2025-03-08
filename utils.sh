@@ -101,6 +101,9 @@ check_requirements() {
 cleanup() {
   export PATH="$OLD_PATH"
   ${RM_CMD} ${in1} ${out1} ${out2} ${bin1} ${dir1}
+  if [ -f "$log1" ] && [ ! -s "$log1" ]; then
+    ${RM_CMD} "$log1" # remove log if empty
+  fi
 }
 
 handle_ctrlc() {
