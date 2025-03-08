@@ -270,6 +270,40 @@ test_makefile_rules() {
   TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
+test_forbidden_functions() {
+  local title="Forbidden functions"
+  local allowed_funcs="open close read write malloc free perror strerror \
+    access dup dup2 execve exit fork pipe unlink wait waitpid"
+
+  if ! command -v nm >/dev/null 2>&1; then
+    printf "${BB}$title:${RC} ${Y}Skipped${RC} - 'nm' command not available\n"
+    return
+  fi
+ 
+  # Get undefined symbols (external function calls) from the binary, filter version
+  local used_funcs=$(nm -u "${NAME}" | awk '{print $2}' | sed 's/@.*$//' | sort | uniq)
+  local disallowed_funcs=""
+  
+  for func in $used_funcs; do
+    # Skip internal C library functions
+    if [[ $func == _* ]]; then
+      continue
+    fi
+    
+    if ! echo "$allowed_funcs" | grep -qw "$func"; then
+      disallowed_funcs+="$func "
+    fi
+  done
+  
+  if [ -z "$disallowed_funcs" ]; then
+    printf "${BB}$title:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    printf "${YB}$title:${RC} ${RB}KO${RC} - $disallowed_funcs\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  fi
+}
+
 test_norminette_check() {
   local title="Norminette check"
 
@@ -291,6 +325,7 @@ test_norminette_check() {
 run_extra_tests() {
   print_header "EXTRA TESTS"
   test_norminette_check
+  test_forbidden_functions
   test_makefile_rules
   test_parallel_execution
   test_interrupt_handling
