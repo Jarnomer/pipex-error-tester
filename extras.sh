@@ -279,22 +279,22 @@ test_forbidden_functions() {
     printf "${BB}$title:${RC} ${Y}Skipped${RC} - 'nm' command not available\n"
     return
   fi
- 
+
   # Get undefined symbols (external function calls) from the binary, filter version
   local used_funcs=$(nm -u "${NAME}" | awk '{print $2}' | sed 's/@.*$//' | sort | uniq)
   local disallowed_funcs=""
-  
+
   for func in $used_funcs; do
     # Skip internal C library functions
     if [[ $func == _* ]]; then
       continue
     fi
-    
+
     if ! echo "$allowed_funcs" | grep -qw "$func"; then
       disallowed_funcs+="$func "
     fi
   done
-  
+
   if [ -z "$disallowed_funcs" ]; then
     printf "${BB}$title:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -312,12 +312,12 @@ test_norminette_check() {
     return
   fi
 
-  norminette &> /dev/null;
+  norminette &>/dev/null
   if [ $? -ne 0 ]; then
-  	printf "${YB}$title:${RC} ${RB}KO${RC}\n"
+    printf "${YB}$title:${RC} ${RB}KO${RC}\n"
     TESTS_FAILED=$((TESTS_FAILED + 1))
   else
-  	printf "${BB}$title:${RC} ${GB}OK${RC}\n"
+    printf "${BB}$title:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
   fi
 }
