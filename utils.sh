@@ -55,18 +55,18 @@ get_extra_title() {
 
 get_valid_title() {
   local valid_titles=(
-    "LS AND WC"
-    "CAT AND WC -W"
-    "GREP O AND WC -L"
-    "CAT AND SORT"
-    "CAT AND HEAD -5"
-    "CAT AND TAIL -3"
-    "HEAD -10 AND GREP M"
-    "CAT AND UNIQ"
-    "LS AND GREP .C"
-    "FIND . -TYPE F AND SORT"
-    "CAT AND TR A-Z A-Z"
-    "CAT AND CUT -D: -F1"
+    "ls | wc"
+    "cat | wc -w"
+    "grep o | wc -l"
+    "cat | sort"
+    "cat | head -5"
+    "cat | tail -3"
+    "head -10 | grep m"
+    "cat | uniq"
+    "ls | grep .c"
+    "find . -type f | sort"
+    "cat | tr a-z a-z"
+    "cat | cut -d: -f1"
   )
   if [ "$1" = "count" ]; then
     echo "${#valid_titles[@]}"
@@ -100,6 +100,7 @@ check_requirements() {
 
 cleanup() {
   export PATH="$OLD_PATH"
+  make fclean >/dev/null
   ${RM_CMD} ${in1} ${out1} ${out2} ${bin1} ${dir1}
   if [ -f "$log1" ] && [ ! -s "$log1" ]; then
     ${RM_CMD} "$log1" # remove log if empty
@@ -121,29 +122,29 @@ setup_test_files() {
   echo -n >"${log1}"   # Reset log file
 }
 
-check_leaks() {
-  local infile="$1"
-  local cmd1="$2"
-  local cmd2="$3"
-  local outfile="$4"
-  local has_leaks=0
-  local open_fds=0
-
-  leak_output=$($VALGRIND_FULL --log-file=/dev/stdout \
-    ./pipex "$infile" "$cmd1" "$cmd2" "$outfile" 2>/dev/null)
-
-  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
-    $TAIL_CMD -n 1 | $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+')
-
-  if echo "$leak_output" | $GREP_CMD -q "definitely lost: [^0]" ||
-    echo "$leak_output" | $GREP_CMD -q "indirectly lost: [^0]" ||
-    { [ -n "$open_fds" ] && [ "$open_fds" -gt 4 ]; }; then
-    has_leaks=1
-  fi
-
-  echo "$leak_output"
-  return $has_leaks
-}
+# check_leaks() {
+#   local infile="$1"
+#   local cmd1="$2"
+#   local cmd2="$3"
+#   local outfile="$4"
+#   local has_leaks=0
+#   local open_fds=0
+#
+#   leak_output=$($VALGRIND_FULL --log-file=/dev/stdout \
+#     ./pipex "$infile" "$cmd1" "$cmd2" "$outfile" 2>/dev/null)
+#
+#   open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
+#     $TAIL_CMD -n 1 | $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+')
+#
+#   if echo "$leak_output" | $GREP_CMD -q "definitely lost: [^0]" ||
+#     echo "$leak_output" | $GREP_CMD -q "indirectly lost: [^0]" ||
+#     { [ -n "$open_fds" ] && [ "$open_fds" -gt 4 ]; }; then
+#     has_leaks=1
+#   fi
+#
+#   echo "$leak_output"
+#   return $has_leaks
+# }
 
 check_bonus_rule() {
   if [ ! -f "Makefile" ]; then
@@ -192,7 +193,7 @@ print_tests() {
 
   TEST_CURRENT=1
   count=$(get_valid_title count)
-  
+
   print_header "VALID TESTS"
   for ((i = 1; i <= count; i++)); do
     printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_valid_title)"

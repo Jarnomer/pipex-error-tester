@@ -52,13 +52,10 @@ print_result() {
 
   # Trim "line 1: " from bash output which comes from shell script
   shell_output=$(echo "$shell_output" | $SED_CMD 's/line 1: //g')
+  pipex_cmd=$(echo "$pipex_cmd" | $SED_CMD "s|$TIMEOUT_FULL ||")
 
-  printf "${CB}Pipex:${RC} ./pipex $infile \"$cmd1\" \"$cmd2\" $outfile1\n"
-  if [ "$empty_cmds" -eq 1 ]; then
-    printf "${GB}Shell:${RC} < $infile \"$cmd1\" | \"$cmd2\" > $outfile2\n\n"
-  else
-    printf "${GB}Shell:${RC} < $infile $cmd1 | $cmd2 > $outfile2\n\n"
-  fi
+  printf "${CB}Pipex:${RC} $pipex_cmd\n"
+  printf "${CB}Shell:${RC} $shell_cmd\n\n"
 
   if [ -n "$pipex_output" ]; then
     printf "${CB}Pipex:${RC} $pipex_output${RC}"
@@ -95,15 +92,41 @@ print_result() {
   fi
 }
 
+check_leaks() {
+  local has_leaks=0
+  local open_fds=0
+
+  base_cmd=$(echo "$1" | $SED_CMD "s|$TIMEOUT_FULL ||")
+  valgrind_cmd="$VALGRIND_FULL --log-file=/dev/stdout $base_cmd"
+
+  leak_output=$(eval "$valgrind_cmd" 2>/dev/null)
+
+  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
+    $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+' | $SORT_CMD -nr | $HEAD_CMD -1)
+
+  definitely_lost=$(echo "$leak_output" |
+    $GREP_CMD -o 'definitely lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
+  indirectly_lost=$(echo "$leak_output" |
+    $GREP_CMD -o 'indirectly lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
+
+  if [[ -n "$definitely_lost" && "$definitely_lost" != "0" ]] ||
+    [[ -n "$indirectly_lost" && "$indirectly_lost" != "0" ]] ||
+    { [ -n "$open_fds" ] && [ "$open_fds" -gt 3 ]; }; then
+    has_leaks=1
+  fi
+
+  echo "$leak_output"
+  return $has_leaks
+}
+
 compare_results() {
   local infile="$1"
-  local cmd1="$2"
-  local cmd2="$3"
-  local outfile1="$4"
-  local outfile2="$5"
-  local title="$6"
-  local empty_cmds=0
+  local outfile1="$2"
+  local outfile2="$3"
+  local title="$4"
   local output_result=0
+  local empty_cmds=0
+  local commands=()
 
   # Skip test if not selected
   if [ "$ALL_ERROR_TESTS" -eq 0 ]; then
@@ -113,30 +136,54 @@ compare_results() {
     fi
   fi
 
-  # Check if testing empty commands
-  if [ -z "$(echo "$cmd1" | $TR_CMD -d '[:space:]')" ] ||
-    [ -z "$(echo "$cmd2" | $TR_CMD -d '[:space:]')" ]; then
-    empty_cmds=1
-  fi
+  # Collect all commands
+  for ((i = 5; i <= $#; i++)); do
+    commands+=("${!i}")
+  done
 
-  # Run pipex with timeout if available
+  # Check if testing empty commands
+  for cmd in "${commands[@]}"; do
+    if [ -z "$(echo "$cmd" | $TR_CMD -d '[:space:]')" ]; then
+      empty_cmds=1
+      break
+    fi
+  done
+
+  # Build full pipex command
   exec="$TIMEOUT_FULL ./$NAME"
-  pipex_output=$($exec "$infile" "$cmd1" "$cmd2" "$outfile1" 2>&1)
+  pipex_cmd="$exec \"$infile\""
+  for cmd in "${commands[@]}"; do
+    pipex_cmd+=" \"$cmd\""
+  done
+  pipex_cmd+=" \"$outfile1\""
+
+  # Execute pipex command
+  pipex_output=$(eval $pipex_cmd 2>&1)
   pipex_exit=$?
+
+  # Build full shell command
+  if [ "$empty_cmds" -eq 1 ]; then
+    shell_cmd="< $infile \"${commands[0]}\""
+    for ((i = 1; i < ${#commands[@]}; i++)); do
+      shell_cmd+=" | \"${commands[$i]}\""
+    done
+  else
+    shell_cmd="< $infile ${commands[0]}"
+    for ((i = 1; i < ${#commands[@]}; i++)); do
+      shell_cmd+=" | ${commands[$i]}"
+    done
+  fi
+  shell_cmd+=" > $outfile2"
+
+  # Execute shell command
+  exec="$TIMEOUT_FULL bash -c"
+  shell_output=$($exec "$shell_cmd" 2>&1)
+  shell_exit=$?
 
   # Update pipex output in case of segfault
   if [ "$pipex_exit" -eq 139 ]; then
     pipex_output="${Y}Segmentation fault (SIGSEGV) (core dumped)${RC}\n"
   fi
-
-  # Run shell with timeout if available, check if empty commands used
-  exec="$TIMEOUT_FULL bash -c"
-  if [ "$empty_cmds" -eq 1 ]; then
-    shell_output=$($exec "< $infile \"$cmd1\" | \"$cmd2\" > $outfile2" 2>&1)
-  else
-    shell_output=$($exec "< $infile $cmd1 | $cmd2 > $outfile2" 2>&1)
-  fi
-  shell_exit=$?
 
   # Check if outputs match, eg. command not found
   error_msg=$(echo "$shell_output" | $SED_CMD -n 's/.*: \(.*\)$/\1/p')
@@ -150,7 +197,7 @@ compare_results() {
   diff_output=$($DIFF_CMD "$outfile1" "$outfile2")
 
   # Check for memory leaks
-  leak_output=$(check_leaks "$infile" "$cmd1" "$cmd2" "$outfile1")
+  leak_output=$(check_leaks "$pipex_cmd")
   leak_result=$?
 
   # Print result
@@ -171,75 +218,75 @@ compare_results() {
 
 run_error_tests() {
   print_header "ERROR TESTS"
-  compare_results "noinfile" "ls" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "noinfile" "xxx" "wc" "${out1}" "${out2}" "$(get_error_title)"
+
+  compare_results "noinfile" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
+  compare_results "noinfile" "${out1}" "${out2}" "$(get_error_title)" "xxx" "wc"
 
   chmod -r ${in1}
-  compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
   chmod +r ${in1}
 
   chmod -w ${out1}
   chmod -w ${out2}
-  compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls" "wc" "${dir1}" "${dir1}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
+  compare_results "${in1}" "${dir1}" "${dir1}" "$(get_error_title)" "ls" "wc"
   chmod +w ${out1}
   chmod +w ${out2}
 
   chmod -x ${bin1}
-  compare_results "${in1}" "./${bin1}" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "wc" "./${bin1}" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "./${bin1}" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "wc" "./${bin1}"
   chmod +x ${bin1}
 
-  compare_results "${in1}" "./${dir1}/" "ls" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls" "./${dir1}/" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "./${dir1}/" "ls"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "./${dir1}/"
 
-  compare_results "${in1}" "xxx" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "/xxx/xxx" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls" "xxx" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls" "/xxx/xxx" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "xxx" "/xxx/xxx" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "xxx" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "/xxx/xxx" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "xxx"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "/xxx/xxx"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "xxx" "/xxx/xxx"
 
-  compare_results "${in1}" "" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls" "     " "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "" "     " "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "     "
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "" "     "
 
-  compare_results "${in1}" "ls -?" "grep c" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "ls -?" "wc -9001" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls -?" "grep c"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls -?" "wc -9001"
 
   unset PATH
-  compare_results "${in1}" "ls" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "/xxx/xxx" "/xxx/xxx" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "$LS_CMD" "wc" "${out1}" "${out2}" "$(get_error_title)"
-  compare_results "${in1}" "$LS_CMD" "$CAT_CMD" "${out1}" "${out2}" "$(get_error_title)"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "/xxx/xxx" "/xxx/xxx"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "$LS_CMD" "wc"
+  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "$LS_CMD" "$CAT_CMD"
   export PATH="$OLD_PATH"
 }
 
 run_valid_tests() {
   print_header "VALID TESTS"
   local infile="Makefile"
-  local count=$(get_valid_title count)
   TEST_CURRENT=1
 
-  for ((i = 1; i <= count; i++)); do
+  count=$(get_valid_title count)
+  while [ $TEST_CURRENT -le $count ]; do
     local title="$(get_valid_title)"
-    local lowercased=$(echo "$title" | tr '[:upper:]' '[:lower:]')
-    local cmd1=$(echo "$lowercased" | sed 's/ and .*//')
-    local cmd2=$(echo "$lowercased" | sed 's/.* and //')
+    local cmd1=$(echo "$title" | sed 's/ | .*//')
+    local cmd2=$(echo "$title" | sed 's/.* | //')
 
     >"${out1}" # Clean output files
     >"${out2}"
 
-    compare_results "$infile" "$cmd1" "$cmd2" "${out1}" "${out2}" "$title"
+    compare_results "$infile" "${out1}" "${out2}" "$title" "$cmd1" "$cmd2"
   done
 }
 
 run_special_tests() {
   print_header "SPECIAL TESTS"
   local infile="Makefile"
-  local count=$(get_special_title count)
   TEST_CURRENT=1
 
-  for ((i = 1; i <= count; i++)); do
+  count=$(get_special_title count)
+  while [ $TEST_CURRENT -le $count ]; do
     local title="$(get_special_title)"
     local cmd1=$(echo "$title" | sed 's/ | .*//')
     local cmd2=$(echo "$title" | sed 's/.* | //')
@@ -247,10 +294,9 @@ run_special_tests() {
     >"${out1}" # Clean output files
     >"${out2}"
 
-    compare_results "$infile" "$cmd1" "$cmd2" "${out1}" "${out2}" "$title"
+    compare_results "$infile" "${out1}" "${out2}" "$title" "$cmd1" "$cmd2"
   done
 }
-
 
 parse_arguments() {
   local count=$(get_error_title count)
@@ -316,7 +362,7 @@ parse_arguments "$@"
 
 if ! [ -f "$NAME" ]; then
   printf "\n${CB}INFO: ${RC}Binary ${YB}<$NAME>${RC} not found...\n"
-  printf "\n${CB}INFO: ${RC}Running ${CB}Makefile${RC}...\n"
+  printf "\n${CB}INFO: ${RC}Running ${GB}Makefile${RC}...\n"
   make >/dev/null
 fi
 
@@ -332,6 +378,8 @@ if [ -f "$NAME" ]; then
     run_valid_tests
   elif [ $EXTRA_TESTS -eq 1 ]; then
     run_extra_tests
+    # elif [ $BONUS_TESTS -eq 1 ]; then
+    # run_bonus_tests
   elif [ $SPECIAL_TESTS -eq 1 ]; then
     run_special_tests
   else
