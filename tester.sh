@@ -92,33 +92,6 @@ print_result() {
   fi
 }
 
-check_leaks() {
-  local has_leaks=0
-  local open_fds=0
-
-  base_cmd=$(echo "$1" | $SED_CMD "s|$TIMEOUT_FULL ||")
-  valgrind_cmd="$VALGRIND_FULL --log-file=/dev/stdout $base_cmd"
-
-  leak_output=$(eval "$valgrind_cmd" 2>/dev/null)
-
-  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
-    $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+' | $SORT_CMD -nr | $HEAD_CMD -1)
-
-  definitely_lost=$(echo "$leak_output" |
-    $GREP_CMD -o 'definitely lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
-  indirectly_lost=$(echo "$leak_output" |
-    $GREP_CMD -o 'indirectly lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
-
-  if [[ -n "$definitely_lost" && "$definitely_lost" != "0" ]] ||
-    [[ -n "$indirectly_lost" && "$indirectly_lost" != "0" ]] ||
-    { [ -n "$open_fds" ] && [ "$open_fds" -gt 3 ]; }; then
-    has_leaks=1
-  fi
-
-  echo "$leak_output"
-  return $has_leaks
-}
-
 compare_results() {
   local infile="$1"
   local outfile1="$2"
@@ -262,44 +235,40 @@ run_error_tests() {
   export PATH="$OLD_PATH"
 }
 
-run_valid_tests() {
-  print_header "VALID TESTS"
+run_tester() {
+  local header_title="$1"
+  local get_function="$2"
   local infile="Makefile"
   TEST_CURRENT=1
 
-  count=$(get_valid_title count)
-  while [ $TEST_CURRENT -le $count ]; do
-    local title="$(get_valid_title)"
-    local cmd1=$(echo "$title" | sed 's/ | .*//')
-    local cmd2=$(echo "$title" | sed 's/.* | //')
+  print_header "$header_title"
 
-    >"${out1}" # Clean output files
+  count=$($get_function count)
+  while [ $TEST_CURRENT -le $count ]; do
+    local title="$($get_function)"
+
+    >"${out1}" # Reset output files
     >"${out2}"
 
-    compare_results "$infile" "${out1}" "${out2}" "$title" "$cmd1" "$cmd2"
-  done
-}
+    # Process commands from title
+    IFS='|' read -r -a commands <<<"$title"
 
-run_special_tests() {
-  print_header "SPECIAL TESTS"
-  local infile="Makefile"
-  TEST_CURRENT=1
-
-  count=$(get_special_title count)
-  while [ $TEST_CURRENT -le $count ]; do
-    local title="$(get_special_title)"
-    local cmd1=$(echo "$title" | sed 's/ | .*//')
-    local cmd2=$(echo "$title" | sed 's/.* | //')
-
-    >"${out1}" # Clean output files
-    >"${out2}"
-
-    compare_results "$infile" "${out1}" "${out2}" "$title" "$cmd1" "$cmd2"
+    # Join commands and base arguments
+    if [ ${#commands[@]} -ge 1 ]; then
+      args=("$infile" "${out1}" "${out2}" "$title")
+      for cmd in "${commands[@]}"; do
+        cmd=$(echo "$cmd" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        args+=("$cmd")
+      done
+      compare_results "${args[@]}"
+    else
+      printf "${RB}ERROR:${RC} ${Y}Incorrect test line format${RC}\n"
+    fi
   done
 }
 
 parse_arguments() {
-  local count=$(get_error_title count)
+  count=$(get_error_title count)
 
   while [[ $# -gt 0 ]]; do
     case $1 in
@@ -371,17 +340,27 @@ if [ -f "$NAME" ]; then
   setup_test_files
   if [ $ALL_TESTS -eq 1 ]; then
     run_error_tests
-    run_valid_tests
+    run_tester "VALID TESTS" "get_valid_title"
     run_extra_tests
-    # run_bonus_tests
+    if [ "$(check_bonus_rule)" -eq 1 ]; then
+      run_tester "BONUS TESTS" "get_bonus_title"
+      run_extra_bonus_tests
+    else
+      printf "\n${CB}INFO:${RC} No ${YB}<bonus>${RC} rule in Makefile\n"
+    fi
   elif [ $VALID_TESTS -eq 1 ]; then
-    run_valid_tests
+    run_tester "VALID TESTS" "get_valid_title"
   elif [ $EXTRA_TESTS -eq 1 ]; then
     run_extra_tests
-    # elif [ $BONUS_TESTS -eq 1 ]; then
-    # run_bonus_tests
+  elif [ $BONUS_TESTS -eq 1 ]; then
+    if [ "$(check_bonus_rule)" -eq 1 ]; then
+      run_tester "BONUS TESTS" "get_bonus_title"
+      run_extra_bonus_tests
+    else
+      printf "\n${CB}INFO:${RC} No ${YB}<bonus>${RC} rule in Makefile\n"
+    fi
   elif [ $SPECIAL_TESTS -eq 1 ]; then
-    run_special_tests
+    run_tester "SPECIAL TESTS" "get_special_title"
   else
     run_error_tests
   fi

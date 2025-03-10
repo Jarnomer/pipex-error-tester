@@ -35,24 +35,6 @@ get_error_title() {
   fi
 }
 
-get_extra_title() {
-  local extra_titles=(
-    "PARALLEL EXECUTION"
-    "INTERRUPT HANDLING"
-    "SEGFAULT IN CMD2"
-    "INVALID INFILE"
-    "INVALID OUTFILE"
-    "OUTFILE CREATION"
-    "MESSAGE CONSISTENCY"
-    "ZOMBIE PROCESSES"
-  )
-  if [ "$1" = "count" ]; then
-    echo "${#extra_titles[@]}"
-  else
-    echo "${extra_titles[$TEST_CURRENT - 1]}"
-  fi
-}
-
 get_valid_title() {
   local valid_titles=(
     "ls | wc"
@@ -75,12 +57,70 @@ get_valid_title() {
   fi
 }
 
+get_extra_title() {
+  local extra_titles=(
+    "PARALLEL EXECUTION"
+    "INTERRUPT HANDLING"
+    "SEGFAULT IN CMD2"
+    "INVALID INFILE"
+    "INVALID OUTFILE"
+    "OUTFILE CREATION"
+    "MESSAGE CONSISTENCY"
+    "ZOMBIE PROCESSES"
+  )
+  if [ "$1" = "count" ]; then
+    echo "${#extra_titles[@]}"
+  else
+    echo "${extra_titles[$TEST_CURRENT - 1]}"
+  fi
+}
+
+get_bonus_title() {
+  local bonus_titles=(
+    "ls | xxx | cat | wc"
+    "cat | grep a | /xxx/xxx | sort"
+    "grep a | sort | cat | xxx -l"
+    "cat | head | grep a | tail | /xxx/xxx"
+    "ps | grep a | ls -? | sort | uniq"
+    "ls -Z | grep c | wc -l"
+    "ls -la | grep c | wc -l | sort"
+    "cat | head -n 5 | grep a | wc -l"
+    "find . -type f | grep c | sort | head -n 3"
+    "ls | grep c | sort -r | head -n 2 | wc -l"
+    "cat | tr a-z A-Z | grep A | wc -c"
+    "ls -l | awk {print} | grep c | sort -r"
+    "find . | grep c | sort | uniq | wc -l"
+    "cat | head -n 10 | tail -n 5 | grep a | wc"
+    "ls | grep -v a | sort -n | head -n 3 | cat"
+  )
+  if [ "$1" = "count" ]; then
+    echo "${#bonus_titles[@]}"
+  else
+    echo "${bonus_titles[$TEST_CURRENT - 1]}"
+  fi
+}
+
+get_bonus_extra_title() {
+  local bonus_extra_titles=(
+    "HEREDOC"
+  )
+  if [ "$1" = "count" ]; then
+    echo "${#bonus_extra_titles[@]}"
+  else
+    echo "${bonus_extra_titles[$TEST_CURRENT - 1]}"
+  fi
+}
+
 get_special_title() {
   local special_titles=(
     "grep -v '^#' | cut -d' ' -f1,2"
-    "grep '=' | awk -F= '{print \"key=\" \$1 \", value=\" \$2}'"
     "grep -Eo '[A-Z][A-Za-z0-9_]*' | sort -u"
     "sed -E 's/(\\w+)=/\\1: /g; s/#.*//g' | grep -i 'make'"
+    "grep -E '^[a-zA-Z]' | tr '[:lower:]' '[:upper:]'"
+    "sed -E 's/\t/ /g' | grep -o '[0-9]\\+'"
+    "grep 'include' | sed -E 's/.*<(.*)>.*/\\1/'"
+    "cut -d'=' -f1 | sed 's/[[:space:]]*$//'"
+    "awk '/^#/ {next} {print}' | sort -r"
   )
   if [ "$1" = "count" ]; then
     echo "${#special_titles[@]}"
@@ -122,42 +162,39 @@ setup_test_files() {
   echo -n >"${log1}"   # Reset log file
 }
 
-# check_leaks() {
-#   local infile="$1"
-#   local cmd1="$2"
-#   local cmd2="$3"
-#   local outfile="$4"
-#   local has_leaks=0
-#   local open_fds=0
-#
-#   leak_output=$($VALGRIND_FULL --log-file=/dev/stdout \
-#     ./pipex "$infile" "$cmd1" "$cmd2" "$outfile" 2>/dev/null)
-#
-#   open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
-#     $TAIL_CMD -n 1 | $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+')
-#
-#   if echo "$leak_output" | $GREP_CMD -q "definitely lost: [^0]" ||
-#     echo "$leak_output" | $GREP_CMD -q "indirectly lost: [^0]" ||
-#     { [ -n "$open_fds" ] && [ "$open_fds" -gt 4 ]; }; then
-#     has_leaks=1
-#   fi
-#
-#   echo "$leak_output"
-#   return $has_leaks
-# }
-
 check_bonus_rule() {
-  if [ ! -f "Makefile" ]; then
-    printf "${BB}ERROR:${RC} - ${Y}'Makefile'${RC} not found\n"
-    exit 1
-    return
+  if grep -q "^bonus:" Makefile; then
+    echo "1"
+  else
+    echo "0"
+  fi
+}
+
+check_leaks() {
+  local has_leaks=0
+  local open_fds=0
+
+  base_cmd=$(echo "$1" | $SED_CMD "s|$TIMEOUT_FULL ||")
+  valgrind_cmd="$VALGRIND_FULL --log-file=/dev/stdout $base_cmd"
+
+  leak_output=$(eval "$valgrind_cmd" 2>/dev/null)
+
+  open_fds=$(echo "$leak_output" | $GREP_CMD -A 1 "FILE DESCRIPTORS" |
+    $GREP_CMD -o '[0-9]\+ open' | $GREP_CMD -o '[0-9]\+' | $SORT_CMD -nr | $HEAD_CMD -1)
+
+  definitely_lost=$(echo "$leak_output" |
+    $GREP_CMD -o 'definitely lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
+  indirectly_lost=$(echo "$leak_output" |
+    $GREP_CMD -o 'indirectly lost: [0-9,]\+ bytes' | $GREP_CMD -o '[0-9,]\+')
+
+  if [[ -n "$definitely_lost" && "$definitely_lost" != "0" ]] ||
+    [[ -n "$indirectly_lost" && "$indirectly_lost" != "0" ]] ||
+    { [ -n "$open_fds" ] && [ "$open_fds" -gt 3 ]; }; then
+    has_leaks=1
   fi
 
-  if grep -q "^bonus:" Makefile; then
-    echo "0" # has bonus
-  else
-    echo "1"
-  fi
+  echo "$leak_output"
+  return $has_leaks
 }
 
 print_usage() {
@@ -174,11 +211,20 @@ print_usage() {
 }
 
 print_tests() {
-  local count=$(get_error_title count)
+  count=$(get_error_title count)
 
   print_header "ERROR TESTS"
   for ((i = 1; i <= count; i++)); do
     printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_error_title)"
+    TEST_CURRENT=$((TEST_CURRENT + 1))
+  done
+
+  TEST_CURRENT=1
+  count=$(get_valid_title count)
+
+  print_header "VALID TESTS"
+  for ((i = 1; i <= count; i++)); do
+    printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_valid_title)"
     TEST_CURRENT=$((TEST_CURRENT + 1))
   done
 
@@ -192,11 +238,20 @@ print_tests() {
   done
 
   TEST_CURRENT=1
-  count=$(get_valid_title count)
+  count=$(get_bonus_title count)
 
-  print_header "VALID TESTS"
+  print_header "BONUS TESTS"
   for ((i = 1; i <= count; i++)); do
-    printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_valid_title)"
+    printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_bonus_title)"
+    TEST_CURRENT=$((TEST_CURRENT + 1))
+  done
+
+  TEST_CURRENT=1
+  count=$(get_bonus_extra_title count)
+
+  print_header "BONUS EXTRA TESTS"
+  for ((i = 1; i <= count; i++)); do
+    printf "${PB}%2d${RC} - ${G}%s${RC}\n" "$TEST_CURRENT" "$(get_bonus_extra_title)"
     TEST_CURRENT=$((TEST_CURRENT + 1))
   done
 

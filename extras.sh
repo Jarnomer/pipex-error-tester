@@ -88,7 +88,7 @@ EOF
 
 test_invalid_infile() {
   local title="Invalid infile"
-  local reason="First command ran with invalid infile"
+  local reason="First command ran without valid infile"
 
   local cmd_script="exec_marker.sh"
   local marker_file="executed_cmd1"
@@ -112,7 +112,7 @@ test_invalid_infile() {
 
 test_invalid_outfile() {
   local title="Invalid outfile"
-  local reason="Second command ran with invalid outfile"
+  local reason="Second command ran without valid outfile"
 
   local cmd_script="exec_marker2.sh"
   local marker_file="executed_cmd2"
@@ -209,7 +209,6 @@ test_zombie_processes() {
 
 test_makefile_rules() {
   local title="Makefile rules"
-  local has_bonus=$(check_bonus_rule)
 
   make all >/dev/null || {
     printf "${YB}$title:${RC} ${RB}KO${RC} - Could not run make all\n"
@@ -259,7 +258,7 @@ test_makefile_rules() {
     return
   }
 
-  if [ $has_bonus -eq 0 ]; then
+  if [ "$(check_bonus_rule)" -eq 1 ]; then
     make bonus >/dev/null || {
       printf "${YB}Bonus rule:${RC} ${RB}KO${RC} - Could not run make bonus\n"
       TESTS_FAILED=$((TESTS_FAILED + 1))
@@ -271,6 +270,7 @@ test_makefile_rules() {
 }
 
 test_forbidden_functions() {
+  local disallowed_funcs=""
   local title="Forbidden functions"
   local allowed_funcs="open close read write malloc free perror strerror \
     access dup dup2 execve exit fork pipe unlink wait waitpid"
@@ -280,9 +280,8 @@ test_forbidden_functions() {
     return
   fi
 
-  # Get undefined symbols (external function calls) from the binary, filter version
-  local used_funcs=$(nm -u "${NAME}" | awk '{print $2}' | sed 's/@.*$//' | sort | uniq)
-  local disallowed_funcs=""
+  # Get undefined symbols (external function calls) from the binary, filter version out
+  used_funcs=$(nm -u "${NAME}" | awk '{print $2}' | sed 's/@.*$//' | sort | uniq)
 
   for func in $used_funcs; do
     # Skip internal C library functions
