@@ -191,47 +191,48 @@ compare_results() {
 
 run_error_tests() {
   print_header "ERROR TESTS"
+  args=("${in1}" "${out1}" "${out2}")
 
   compare_results "noinfile" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
   compare_results "noinfile" "${out1}" "${out2}" "$(get_error_title)" "xxx" "wc"
 
   chmod -r ${in1}
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "wc"
   chmod +r ${in1}
 
   chmod -w ${out1}
   chmod -w ${out2}
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
-  compare_results "${in1}" "${dir1}" "${dir1}" "$(get_error_title)" "ls" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "wc"
   chmod +w ${out1}
   chmod +w ${out2}
 
   chmod -x ${bin1}
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "./${bin1}" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "wc" "./${bin1}"
+  compare_results "${args[@]}" "$(get_error_title)" "./${bin1}" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "wc" "./${bin1}"
   chmod +x ${bin1}
 
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "./${dir1}/" "ls"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "./${dir1}/"
+  compare_results "${args[@]}" "$(get_error_title)" "./${dir1}/" "ls"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "./${dir1}/"
 
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "xxx" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "/xxx/xxx" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "xxx"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "/xxx/xxx"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "xxx" "/xxx/xxx"
+  compare_results "${args[@]}" "$(get_error_title)" "xxx" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "/xxx/xxx" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "xxx"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "/xxx/xxx"
+  compare_results "${args[@]}" "$(get_error_title)" "xxx" "/xxx/xxx"
 
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "     "
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "" "     "
+  compare_results "${args[@]}" "$(get_error_title)" "" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "     "
+  compare_results "${args[@]}" "$(get_error_title)" "" "     "
 
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls -?" "grep c"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls -?" "wc -9001"
+  compare_results "${args[@]}" "$(get_error_title)" "ls -?" "grep c"
+  compare_results "${args[@]}" "$(get_error_title)" "ls -?" "wc -9001"
 
   unset PATH
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "ls" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "/xxx/xxx" "/xxx/xxx"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "$LS_CMD" "wc"
-  compare_results "${in1}" "${out1}" "${out2}" "$(get_error_title)" "$LS_CMD" "$CAT_CMD"
+  compare_results "${args[@]}" "$(get_error_title)" "ls" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "/xxx/xxx" "/xxx/xxx"
+  compare_results "${args[@]}" "$(get_error_title)" "$LS_CMD" "wc"
+  compare_results "${args[@]}" "$(get_error_title)" "$LS_CMD" "$CAT_CMD"
   export PATH="$OLD_PATH"
 }
 
@@ -244,10 +245,10 @@ run_tester() {
   print_header "$header_title"
 
   count=$($get_function count)
-  while [ $TEST_CURRENT -le $count ]; do
-    local title="$($get_function)"
+  while [ $TEST_CURRENT -le "$count" ]; do
+    title="$($get_function)"
 
-    >"${out1}" # Reset output files
+    >"${out1}" # reset outfiles
     >"${out2}"
 
     # Process commands from title

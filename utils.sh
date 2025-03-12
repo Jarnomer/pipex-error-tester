@@ -102,7 +102,11 @@ get_bonus_title() {
 
 get_bonus_extra_title() {
   local bonus_extra_titles=(
-    "HEREDOC"
+    "ARGUMENTS COUNT"
+    "HEREDOC LIMITER"
+    "HEREDOC APPEND"
+    "INFILE TRUNCATE"
+    "ZOMBIE PROCESSES"
   )
   if [ "$1" = "count" ]; then
     echo "${#bonus_extra_titles[@]}"
@@ -203,9 +207,9 @@ print_usage() {
   printf "  ${GB}-t${RC}, ${G}--test ID  ${P}Run specific error test by ID${RC}\n"
   printf "  ${GB}-v${RC}, ${G}--valid    ${P}Run tests with valid commands${RC}\n"
   printf "  ${GB}-e${RC}, ${G}--extra    ${P}Run extra checks and logical tests${RC}\n"
-  printf "  ${GB}-b${RC}, ${G}--bonus    ${P}Run hdoc and multi command tests${RC}\n"
+  printf "  ${GB}-b${RC}, ${G}--bonus    ${P}Run hdoc and multi pipeline tests${RC}\n"
   printf "  ${GB}-s${RC}, ${G}--special  ${P}Run tests with meta characters${RC}\n"
-  printf "  ${GB}-a${RC}, ${G}--all      ${P}Run error, valid, extra and bonus tests${RC}\n"
+  printf "  ${GB}-a${RC}, ${G}--all      ${P}Run all but special tests${RC}\n"
   printf "  ${GB}-l${RC}, ${G}--list     ${P}List all available tests${RC}\n"
   printf "  ${GB}-h${RC}, ${G}--help     ${P}Show this help message${RC}\n\n"
 }

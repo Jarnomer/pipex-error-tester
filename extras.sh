@@ -181,29 +181,86 @@ test_message_consistency() {
 
 test_zombie_processes() {
   local title="Zombie processes"
-  local reason="Program didn't wait for child process"
-  local zombie_count_cmd1=0
-  local zombie_count_cmd2=0
+  local zombie_prog="zombie_test"
 
-  exec="$TIMEOUT_FULL ./$NAME"
-  $exec "${in1}" "sleep 0.5" "echo test" "${out1}" 2>/dev/null
+  cat >${zombie_prog}.c <<'EOF'
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdio.h>
+#include <time.h>
 
-  sleep 0.2
+int main (int argc, char **argv)
+{
+  time_t start_time, end_time;
+  char *args[10];
+  char cmd[100];
+  int zombies=0;
+  int i;
 
-  zombie_count_cmd1=$(ps aux | grep -v grep | grep "pipex" | grep -w 'Z' | wc -l)
+  args[0] = "./pipex";
+  for (i = 1; i < argc && i < 9; i++) {
+    args[i] = argv[i];
+  }
+  args[i] = NULL;
 
-  $exec "${in1}" "echo test" "sleep 0.5" "${out1}" 2>/dev/null
+  time(&start_time);
+  pid_t pid = fork ();
+  if (pid < 0) {
+    exit(-1);
+  } else if (!pid) {
+    execv("./pipex", args);
+    exit(-1);
+  }
+  else {
+    usleep(150000);
 
-  sleep 0.2
+    sprintf(cmd, "ps --ppid %d -o stat= | grep -c Z", pid);
+    FILE *fp = popen(cmd, "r");
+    if (fp) {
+      char result[10] = {0};
+      if (fgets(result, sizeof(result), fp) != NULL) {
+          zombies = atoi(result);
+      }
+      pclose(fp);
+    }
 
-  zombie_count_cmd2=$(ps aux | grep -v grep | grep "pipex" | grep -w 'Z' | wc -l)
+    waitpid(pid, NULL, 0);
+    time(&end_time);
 
-  if [ "$zombie_count_cmd1" -eq 0 ] && [ "$zombie_count_cmd2" -eq 0 ]; then
+    printf("%d:%ld", zombies, (long)(end_time - start_time));
+    return zombies > 0 ? 1 : 0;
+  }
+}
+EOF
+
+  if ! gcc -o "$zombie_prog" "${zombie_prog}.c" 2>/dev/null; then
+    printf "${BB}$title:${RC} ${YB}Skipped${RC} - couldn't compile test program\n"
+    rm -rf "${zombie_prog}.c"
+    return
+  fi
+
+  result=$("./$zombie_prog" "${in1}" "sleep 0.05" "sleep 1" "${out1}" 2>/dev/null)
+  exit_code=$?
+  zombie_count=$(echo "$result" | cut -d':' -f1)
+  duration=$(echo "$result" | cut -d':' -f2)
+
+  rm "${zombie_prog}.c" "$zombie_prog"
+
+  if [ "$exit_code" -eq -1 ]; then
+    printf "${BB}$title:${RC} ${YB}KO${RC} - test execution failed\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  elif [ "$zombie_count" -gt 0 ]; then
+    printf "${YB}$title:${RC} ${RB}KO${RC} - zombie processes found\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  elif [ "$duration" -lt 1 ]; then
+    printf "${YB}$title:${RC} ${RB}KO${RC} - program exits too quickly\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  else
     printf "${BB}$title:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
-  else
-    printf "${YB}$title:${RC} ${RB}KO${RC} - $reason\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
 }
 
@@ -312,17 +369,18 @@ test_norminette_check() {
   fi
 
   norminette &>/dev/null
-  if [ $? -ne 0 ]; then
-    printf "${YB}$title:${RC} ${RB}KO${RC}\n"
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-  else
+  if [ $? -eq 0 ]; then
     printf "${BB}$title:${RC} ${GB}OK${RC}\n"
     TESTS_PASSED=$((TESTS_PASSED + 1))
+  else
+    printf "${YB}$title:${RC} ${RB}KO${RC}\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
   fi
 }
 
 run_extra_tests() {
   print_header "EXTRA TESTS"
+  printf "${CB}INFO:${RC} Extra tests do not create log entries\n\n"
   test_norminette_check
   test_forbidden_functions
   test_makefile_rules
@@ -334,5 +392,4 @@ run_extra_tests() {
   test_outfile_creation
   test_message_consistency
   test_zombie_processes
-  cleanup
 }
