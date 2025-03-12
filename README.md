@@ -25,8 +25,7 @@
 [🛠️ Installation](#️-installation)  
 [⚡ Usage](#-usage)  
 [🔍 Tests](#-tests)  
-[📊 Results](#-results)  
-[🌟 Contributing](#-contributing)
+[📊 Results](#-results)
 
 </div>
 
@@ -175,22 +174,6 @@ For failed tests, detailed error information is saved to `pipex_error.log` inclu
 - Valgrind memory leak reports
 
 ⚠️ Extra tests do not create log entries ⚠️
-
-## 🌟 Contributing
-
-Contributions are welcome! If you find any issues or have improvements to suggest:
-
-1. Fork the repository
-2. Create a new branch
-3. Submit a pull request
-
-### Reporting Issues
-
-If you encounter a problem with the tester, please file an issue with:
-
-- Test command that failed
-- Expected vs. actual behavior
-- Your system information
 
 ## 4️⃣2️⃣ Footer
 
