@@ -34,47 +34,48 @@
 
 ## 📝 Overview
 
-The pipex tester is a comprehensive testing framework designed to thoroughly validate your pipex implementation. It focuses on:
+A comprehensive testing framework designed to thoroughly validate your pipex implementation:
 
-- **Error handling**: Validates proper responses to invalid inputs, file permissions, and command errors
-- **Functionality**: Tests the core pipeline and redirection capabilities
-- **Edge cases**: Verifies handling of empty commands, quotes, special characters, and more
-- **Memory management**: Checks for leaks and file descriptor management (with valgrind support)
+- **Error handling**: Validates responses to invalid inputs, permissions and command errors
+- **Functionality**: Tests core pipeline and redirection capabilities
+- **Memory management**: Checks for leaks and file descriptor management
 - **Bonus features**: Tests heredoc support and multiple command pipelines
+- **Special cases**: Verifies handling of empty commands, special characters, and more
 
-This tester systematically compares your pipex output with the expected bash behavior to ensure complete compatibility.
+The tester systematically compares your pipex output with the expected `bash` behavior.
 
 ## 🛠️ Installation
 
-Clone the repository into your pipex directory or adjacent to it:
+Clone the repository into your pipex directory:
 
 ```bash
 git clone https://github.com/Jarnomer/pipex-error-tester.git
-cd pipex-error-tester
-```
-
-Ensure that the tester scripts have execution permissions:
-
-```bash
-chmod +x tester.sh
 ```
 
 ## ⚡ Usage
 
-The tester provides several options to target specific test categories:
+Run the tester with shell or optionally give execution permissions:
 
 ```bash
-./tester.sh [OPTIONS]
+bash pipex-error-tester/tester.sh [OPTIONS]
 ```
 
-Available options:
+```bash
+chmod +x pipex-error-tester/tester.sh
+```
+
+```bash
+pipex-error-tester/tester.sh [OPTIONS]
+```
+
+The tester provides several options to target specific test categories:
 
 ```
   -t, --test ID    Run specific error test by ID
   -v, --valid      Run tests with valid commands
   -e, --extra      Run extra checks and logical tests
   -b, --bonus      Run heredoc and multi pipeline tests
-  -s, --special    Run tests with meta characters
+  -s, --special    Run tests with special characters
   -a, --all        Run all tests except special tests
   -l, --list       List all available tests
   -h, --help       Show this help message
@@ -82,25 +83,25 @@ Available options:
 
 ### Examples
 
-Run all tests:
+Run all tests, excluding quotes and backslahes:
 
 ```bash
 ./tester.sh -a
 ```
 
-Run only error handling tests:
+Run default error handling tests:
 
 ```bash
 ./tester.sh
 ```
 
-Run a specific test (e.g., test #5):
+Run a specific error test:
 
 ```bash
 ./tester.sh -t 5
 ```
 
-Run bonus tests (heredoc and multiple pipelines):
+Run bonus tests:
 
 ```bash
 ./tester.sh -b
@@ -114,19 +115,19 @@ Tests proper error handling for:
 
 - Non-existent input files
 - Permission issues (read/write/execute)
-- Invalid commands
-- Directory as command
+- Invalid commands (with and without path)
+- Unsupported command arguments
+- Directory as command or output file
 - Path environment issues
-- Empty/null commands
+- Null and empty commands
 
 ### 2. Valid Tests
 
-Tests correct operation with valid commands, including:
+Tests operation with valid commands:
 
 - Basic pipelines (`ls | wc`)
-- Text processing (`grep`, `sort`, `head`, `tail`)
-- Complex commands with arguments
-- Standard utilities
+- Text processing (`grep`, `sort`)
+- Standard utilities (`cut -d: -f1`)
 
 ### 3. Extra Tests
 
@@ -134,9 +135,10 @@ Advanced checks for:
 
 - Parallel execution of commands
 - Signal handling (interrupt, segfault)
-- Memory leaks (using valgrind)
-- File descriptor management
+- Execution logic with various inputs
+- Output message consistency
 - Zombie processes
+- File descriptor management (bonus)
 
 ### 4. Bonus Tests
 
@@ -144,17 +146,16 @@ Tests for bonus features:
 
 - Multiple pipes (`cmd1 | cmd2 | cmd3 | ...`)
 - Heredoc functionality (`<<`)
-- Proper appending with heredoc
-- Proper truncation with regular input
+- Proper appending with heredoc (`>>`)
+- Proper truncation with regular input (`>`)
 
 ### 5. Special Tests
 
-Complex tests with meta characters and advanced shell features:
+Complex tests with meta characters and advanced commands:
 
-- Quote handling
-- Special characters
-- Complex pipelines
-- Advanced text processing commands
+- Quote handling (`cut -d' '`)
+- Special characters (`sed -E 's/\t/ /g'`)
+- Advanced text processing (`awk '/^#/ {next} {print}'`)
 
 ## 📊 Test Results
 
@@ -169,6 +170,8 @@ For failed tests, detailed error information is saved to `pipex_error.log` inclu
 - Exit codes comparison
 - Output differences
 - Valgrind memory leak reports
+
+⚠️ Extra tests do not create log entries ⚠️
 
 ## 🚀 Advanced Features
 
