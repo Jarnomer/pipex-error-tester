@@ -68,38 +68,41 @@ test_infile_truncate() {
 }
 
 test_file_descriptors() {
-  local title="File descriptor limits"
+  local title="File descriptors"
   local reason="Program didn't handle fd limit: "
-  local exec="${TIMEOUT_FULL} ./${NAME} Makefile"
 
-  local cats_below=""
-  local cats_above=""
+  cats_above=""
 
-  local system_limit=$(ulimit -n)
+  system_limit=$(ulimit -n)
   if [ -z "$system_limit" ] || [ "$system_limit" -eq 0 ]; then
     printf "${BB}$title:${RC} ${YB}Skipped${RC} - Could not get system fd limit\n"
     return
   fi
 
   # stdin, stdout, stderr, infile, outfile + 2 fds per command
-  local below_limit=$((system_limit / 2 - 5))
   local above_limit=$((system_limit / 2 + 5))
 
   # Build command strings
-  for i in $(seq 1 $below_limit); do
-    cats_below="${cats_below} cat"
-  done
   for i in $(seq 1 $above_limit); do
     cats_above="${cats_above} cat"
   done
 
-  cmd="$exec ${cats_below} ${out1}"
-  stdout=$($cmd 2>/dev/null)
-  exit_code=$?
-
+  exec="${TIMEOUT_FULL} ./${NAME} Makefile"
   cmd="$exec ${cats_above} ${out1}"
-  stdout=$($cmd 2>/dev/null)
-  exit_code=$?
+  output=$($cmd 2>&1)
+  exit=$?
+
+  if [ -z "$output" ] && diff "Makefile" "${out1}" >/dev/null && [ $exit -eq 0 ]; then
+    printf "${BB}$title:${RC} ${GB}OK${RC}\n"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+  elif [ $exit -eq 139 ]; then
+    printf "${YB}$title:${RC} ${RB}KO${RC} - Segmentation fault (SIGSEGV) (core dumped)\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  else
+    # If output is not empty or exit code is not 0, presume graceful handling
+    printf "${YB}$title:${RC} ${RB}KO${RC} - Error printed | Exit code: $exit\n"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+  fi
 }
 
 test_arguments_count() {
