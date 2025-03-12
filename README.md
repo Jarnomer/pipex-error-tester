@@ -109,7 +109,7 @@ Run bonus tests:
 ./tester.sh -b
 ```
 
-## 🔍 Test Categories
+## 🔍 Tests
 
 ### 1. Error Tests
 
@@ -160,7 +160,7 @@ Complex tests with meta characters and advanced commands:
 - Special characters (`sed -E 's/\t/ /g'`)
 - Advanced text processing (`awk '/^#/ {next} {print}'`)
 
-## 📊 Test Results
+## 📊 Results
 
 Test results are displayed in a clean, color-coded format:
 
