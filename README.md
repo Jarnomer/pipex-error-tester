@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="assets/pipex-tester.png" alt="pipex-tester" width="400">
+  <img src="assets/pipex.png" alt="pipex" width="400">
 </h1>
 
 <p align="center">
@@ -34,7 +34,7 @@
 
 ## 📝 Overview
 
-The pipex tester is a comprehensive testing framework designed to thoroughly validate your pipex implementation. It focuses on error handling:
+The pipex tester is a comprehensive testing framework designed to thoroughly validate your pipex implementation. It focuses on:
 
 - **Error handling**: Validates proper responses to invalid inputs, file permissions, and command errors
 - **Functionality**: Tests the core pipeline and redirection capabilities
