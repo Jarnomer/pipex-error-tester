@@ -24,8 +24,8 @@
 [📝 Overview](#-overview)  
 [🛠️ Installation](#️-installation)  
 [⚡ Usage](#-usage)  
-[🔍 Tests](#-test-categories)  
-[📊 Results](#-test-results)  
+[🔍 Tests](#-tests)  
+[📊 Results](#-results)  
 [🌟 Contributing](#-contributing)
 
 </div>
