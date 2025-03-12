@@ -43,9 +43,7 @@ The tester systematically compares your pipex output with the expected `bash` be
 
 ## 🛠️ Installation
 
-GNU `bash` is required to use the tester. `Valgrind` support is detected.
-
-Also some test need `gcc` to compile test programs.
+GNU `bash` is required to use the tester. `Valgrind` support is detected. Also some test need `gcc`.
 
 Clone the repository into your pipex directory:
 
