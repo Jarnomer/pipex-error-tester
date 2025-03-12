@@ -24,10 +24,8 @@
 [📝 Overview](#-overview)  
 [🛠️ Installation](#️-installation)  
 [⚡ Usage](#-usage)  
-[🔍 Test Categories](#-test-categories)  
-[📊 Test Results](#-test-results)  
-[🚀 Advanced Features](#-advanced-features)  
-[📋 Requirements](#-requirements)  
+[🔍 Tests](#-test-categories)  
+[📊 Results](#-test-results)  
 [🌟 Contributing](#-contributing)
 
 </div>
@@ -45,6 +43,10 @@ A comprehensive testing framework designed to thoroughly validate your pipex imp
 The tester systematically compares your pipex output with the expected `bash` behavior.
 
 ## 🛠️ Installation
+
+GNU `bash` is required to use the tester. `Valgrind` support is detected.
+
+Also some test need `gcc` to compile test programs.
 
 Clone the repository into your pipex directory:
 
@@ -133,6 +135,7 @@ Tests operation with valid commands:
 
 Advanced checks for:
 
+- Norminette, Makefile and forbidden functions
 - Parallel execution of commands
 - Signal handling (interrupt, segfault)
 - Execution logic with various inputs
@@ -172,33 +175,6 @@ For failed tests, detailed error information is saved to `pipex_error.log` inclu
 - Valgrind memory leak reports
 
 ⚠️ Extra tests do not create log entries ⚠️
-
-## 🚀 Advanced Features
-
-### Memory Leak Detection
-
-If valgrind is installed, the tester automatically checks for memory leaks:
-
-```bash
-# Install valgrind if needed
-sudo apt-get install valgrind   # Debian/Ubuntu
-brew install valgrind           # macOS with Homebrew
-```
-
-### Command Timeout
-
-Tests automatically timeout after 2 seconds to prevent hanging on infinite loops.
-
-### Norminette Integration
-
-If norminette is available, the tester will check code style compliance.
-
-## 📋 Requirements
-
-- Bash shell environment
-- gcc compiler for some test components
-- Optional: valgrind for memory leak detection
-- Optional: norminette for code style checking
 
 ## 🌟 Contributing
 
