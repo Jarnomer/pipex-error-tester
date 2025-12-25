@@ -7,13 +7,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Tests-60%2B-lightgreen?style=for-the-badge" alt="tests">
   <img src="https://img.shields.io/badge/Compatible-macOS%20%26%20Linux-lightblue?style=for-the-badge" alt="compatibility">
-  <img src="https://img.shields.io/badge/Category-Error%20Handling-pink?style=for-the-badge" alt="category">
+  <img src="https://img.shields.io/badge/Category-Unit%20Testing-pink?style=for-the-badge" alt="category">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Type-Unit%20Testing-violet?style=for-the-badge" alt="type">
   <img src="https://img.shields.io/github/last-commit/Jarnomer/pipex-error-tester/main?style=for-the-badge&color=red" alt="GitHub last commit">
 </p>
 
@@ -43,7 +41,7 @@ The tester systematically compares your pipex output with the expected `bash` be
 
 ## 🛠️ Installation
 
-GNU `bash` is required to use the tester. `Valgrind` support is detected. Also some test need `gcc`.
+GNU `bash` is required to use the tester. `Valgrind` support is detected. Also some tests need `gcc`.
 
 Clone the repository into your pipex directory:
 
@@ -82,16 +80,16 @@ The tester provides several options to target specific test categories:
 
 ### Examples
 
-Run all tests, excluding quotes and backslahes:
-
-```bash
-./tester.sh -a
-```
-
 Run default error handling tests:
 
 ```bash
 ./tester.sh
+```
+
+Run all tests, excluding quotes and backslahes:
+
+```bash
+./tester.sh -a
 ```
 
 Run a specific error test:
@@ -105,6 +103,8 @@ Run bonus tests:
 ```bash
 ./tester.sh -b
 ```
+
+⚠️ You can also add/replace test commands at `utils.sh`. ⚠️
 
 ## 🔍 Tests
 

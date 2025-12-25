@@ -160,6 +160,9 @@ test_message_consistency() {
   local title="Message Consistency"
   local reason="Error outputs are not consistent"
 
+  # Bash checks executables before forking. If your messages regarding these
+  # don't stay consistent, it means your are checking them inside child process.
+
   local first_output=""
   local current_output=""
 
