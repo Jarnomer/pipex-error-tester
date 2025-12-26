@@ -19,11 +19,7 @@
 
 ## Table of Contents
 
-[📝 Overview](#-overview)  
-[🛠️ Installation](#️-installation)  
-[⚡ Usage](#-usage)  
-[🔍 Tests](#-tests)  
-[📊 Results](#-results)
+[📋 Overview](#-overview) | [🛠️ Installation](#️-installation) | [⚡ Usage](#-usage) | [🔍 Tests](#-tests) | [📊 Results](#-results)
 
 </div>
 
