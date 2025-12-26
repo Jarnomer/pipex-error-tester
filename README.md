@@ -108,7 +108,7 @@ Run bonus tests:
 
 ## 🔍 Tests
 
-### 1. Error Tests
+### 1. Error Tests 🚨
 
 Tests proper error handling for:
 
@@ -120,7 +120,7 @@ Tests proper error handling for:
 - Path environment issues
 - Null and empty commands
 
-### 2. Valid Tests
+### 2. Valid Tests ✅
 
 Tests operation with valid commands:
 
@@ -128,7 +128,7 @@ Tests operation with valid commands:
 - Text processing (`grep`, `sort`)
 - Standard utilities (`cut -d: -f1`)
 
-### 3. Extra Tests
+### 3. Extra Tests 🔍
 
 Advanced checks for:
 
@@ -140,7 +140,7 @@ Advanced checks for:
 - Zombie processes
 - File descriptor management (bonus)
 
-### 4. Bonus Tests
+### 4. Bonus Tests 🍪
 
 Tests for bonus features:
 
@@ -149,7 +149,7 @@ Tests for bonus features:
 - Proper appending with heredoc (`>>`)
 - Proper truncation with regular input (`>`)
 
-### 5. Special Tests
+### 5. Special Tests 🎯
 
 Complex tests with meta characters and advanced commands:
 
@@ -161,9 +161,9 @@ Complex tests with meta characters and advanced commands:
 
 Test results are displayed in a clean, color-coded format:
 
-- **Green (OK)**: Test passed
-- **Red (KO)**: Test failed
-- **Yellow**: Test skipped or warning
+- 🟢 **Green [OK]**: Test passed
+- 🔴 **Red [KO]**: Test failed  
+- 🟡 **Yellow**: Test skipped or warning
 
 For failed tests, detailed error information is saved to `pipex_error.log` including:
 
