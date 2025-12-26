@@ -128,7 +128,7 @@ Tests operation with valid commands:
 - Text processing (`grep`, `sort`)
 - Standard utilities (`cut -d: -f1`)
 
-### 3. Extra Tests 🔍
+### 3. Extra Tests 🔰
 
 Advanced checks for:
 
